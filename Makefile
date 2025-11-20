@@ -29,12 +29,12 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
   # macOS
   CXX        := clang++
-  CXXFLAGS   := -Wall `fltk-config --cxxflags` -std=c++17 -DGL_SILENCE_DEPRECATION
+  CXXFLAGS   := -Wall `fltk-config --cxxflags` -std=c++17 -DGL_SILENCE_DEPRECATION -I.
   GLFLAGS    := -framework OpenGL
 else
   # assume Linux
   CXX        := g++
-  CXXFLAGS   := -Wall `fltk-config --cxxflags` -std=c++17
+  CXXFLAGS   := -Wall `fltk-config --cxxflags` -std=c++17 -I.
   GLFLAGS    := -lGL -lGLU
 endif
 
