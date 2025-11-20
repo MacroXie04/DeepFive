@@ -5,7 +5,7 @@
 #include "../game/game.h"
 #include "../ai/bot.h"
 #include "gomoku_canvas.h"
-#include "components.h"
+#include "side_panel.h"
 #include <vector>
 #include <string>
 #include <functional>
@@ -27,37 +27,7 @@ private:
     GomokuBot bot;
     GomokuBot analysisBot;
     GomokuCanvas canvas;
-
-    // Layout Helpers
-    int panelX;
-    int panelWidth;
-    int currentY;
-    void advanceY(int height);
-
-    // Widgets
-    bobcat::TextBox txtTurn;
-    bobcat::Button btnNewGame;
-    bobcat::Button btnUndo;
-    
-    // Timer Widgets
-    std::vector<Fl_Widget*> timerSetupWidgets;
-    std::vector<Fl_Widget*> timerDisplayWidgets;
-    bobcat::TextBox txtTimerSetupTitle;
-    bobcat::IntInput inputInitialTime;
-    bobcat::TextBox txtTimerHint;
-    bobcat::TextBox timerBlackBlock;
-    bobcat::TextBox timerWhiteBlock;
-
-    // Settings
-    bobcat::Dropdown ddMode;
-    bobcat::Dropdown ddBotSide;
-    bobcat::Dropdown ddBotStrength;
-    bobcat::TextBox txtModeDesc;
-
-    // Stats
-    WinRateBar winRateBar;
-    ProgressBar progressBar;
-    bobcat::TextBox txtStats;
+    SidePanel sidePanel;
 
     // State
     int blackConfiguredSeconds;
@@ -70,14 +40,9 @@ private:
     std::function<void()> tryBotPlay;
 
     // Methods
-    void setupUI();
     void setupCallbacks();
     void updateTitle();
-    void updateTurnIndicator();
-    void updateBotSideControl();
     void updateAllUI();
-    void refreshTimerPanels();
-    void updateTimerBlocks();
     void applyTimerConfig();
     void handleTimeoutLoss(Player loser);
     void timerTickLogic();
@@ -85,7 +50,6 @@ private:
     
     // Helpers
     std::string formatStats(double winRate, int sims, double elapsedSec);
-    std::string formatTimerText(double seconds);
     GameMode getSelectedGameMode();
 };
 

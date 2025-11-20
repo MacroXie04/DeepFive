@@ -97,16 +97,16 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
 
     switch (currentMode) {
         case BotMode::Instant:
-            durationMs = 1000;
+            durationMs = 200;
             break;
         case BotMode::Thinking:
-            durationMs = 10000;
+            durationMs = 5000;
             break;
         case BotMode::ExtendedThinking:
-            durationMs = 30000;
+            durationMs = 10000;
             break;
         case BotMode::Pro:
-            durationMs = 60000;
+            durationMs = 15000;
             break;
         case BotMode::Auto: {
             // Dynamic logic
@@ -117,11 +117,11 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
                     if (!board.isEmpty(r,c)) stoneCount++;
             
             if (stoneCount < 10) {
-                durationMs = 500; // Early game fast
+                durationMs = 200; // Early game fast
             } else if (stoneCount < 30) {
                 durationMs = 2000; // Mid game normal
             } else {
-                durationMs = 5000; // Late game think harder
+                durationMs = 10000; // Late game think harder
             }
             break;
         }
