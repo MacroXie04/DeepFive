@@ -2,6 +2,12 @@
 #define GOMOKU_CANVAS_H
 
 #include "bobcat_ui/canvas.h"
+
+// Fix X11 None macro conflict
+#ifdef None
+#undef None
+#endif
+
 #include "../game/game.h"
 #include <functional>
 
