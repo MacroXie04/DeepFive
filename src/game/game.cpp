@@ -98,6 +98,10 @@ void GomokuGame::reset() {
     currentPlayer = Player::Black;
 }
 
+const std::vector<Move>& GomokuGame::getHistory() const {
+    return history;
+}
+
 void GomokuGame::checkGameStatus() {
     if (history.empty()) return;
     

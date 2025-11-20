@@ -37,6 +37,8 @@ public:
     void undoLastMove();
     void reset();
 
+    const std::vector<Move>& getHistory() const;
+
 private:
     Board board;
     GameMode mode;
