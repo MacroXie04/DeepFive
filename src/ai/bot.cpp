@@ -74,16 +74,16 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
         return threatMove;
     }
 
-    // STEP 1: search forced wins (BFS)
-    // Using depth 6 as requested
-    if (ForcedNode* forcedWin = BFS_FindWin(board, side, 6)) {
+    // STEP 1: search forced wins (VCF)
+    // Using depth 15 for VCF as it is narrower
+    if (ForcedNode* forcedWin = BFS_FindWin(board, side, 15)) {
          auto path = reconstructPath(forcedWin);
          if (!path.empty()) return path.front();
     }
 
-    // STEP 2: forced defense (BFS)
-    // Checks if opponent has a forced win we need to block
-    if (ForcedNode* forcedLose = BFS_FindLose(board, side, 6)) {
+    // STEP 2: forced defense (VCF Block)
+    // Checks if opponent has a VCF we need to block
+    if (ForcedNode* forcedLose = BFS_FindLose(board, side, 11)) {
          auto path = reconstructPath(forcedLose);
          if (!path.empty()) {
              // path.front() is the opponent's winning move. We must block it.
@@ -236,13 +236,10 @@ std::pair<std::optional<Move>, int> GomokuBot::runMCTS(const Board& board, Playe
             }
 
             // Heavy rollout: pick moves near stones
-            auto candidates = getCandidateMoves(rolloutBoard, rolloutPlayer);
-            if (candidates.empty()) break; // Should not happen if not full
+            std::optional<Move> randomMove = getFastRandomMove(rolloutBoard, rolloutPlayer);
+            if (!randomMove) break;
             
-            std::uniform_int_distribution<> dis(0, candidates.size() - 1);
-            Move randomMove = candidates[dis(rng)];
-            
-            rolloutBoard.placeStone(randomMove.row, randomMove.col, rolloutPlayer);
+            rolloutBoard.placeStone(randomMove->row, randomMove->col, rolloutPlayer);
             rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
             movesMade++;
         }
@@ -357,11 +354,10 @@ void GomokuBot::startAnalysis(const Board& board, Player side, std::function<voi
                 }
                 if (rolloutBoard.isFull()) break;
 
-                auto candidates = getCandidateMoves(rolloutBoard, rolloutPlayer);
-                if (candidates.empty()) break;
-                std::uniform_int_distribution<> dis(0, candidates.size() - 1);
-                Move randomMove = candidates[dis(rng)];
-                rolloutBoard.placeStone(randomMove.row, randomMove.col, rolloutPlayer);
+                std::optional<Move> randomMove = getFastRandomMove(rolloutBoard, rolloutPlayer);
+                if (!randomMove) break;
+
+                rolloutBoard.placeStone(randomMove->row, randomMove->col, rolloutPlayer);
                 rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
                 movesMade++;
             }
@@ -430,37 +426,128 @@ void GomokuBot::startAnalysis(const Board& board, Player side, std::function<voi
 
 std::vector<Move> GomokuBot::getCandidateMoves(const Board& board, Player side) {
     std::vector<Move> moves;
-    moves.reserve(50); // Optimization
+    moves.reserve(50); 
     int size = board.size();
-    std::vector<bool> visited(size * size, false);
-    bool emptyBoard = true;
+    
+    // Optimization: Only scan relevant area
+    int minR = size, maxR = -1, minC = size, maxC = -1;
+    bool empty = true;
+    for(int r=0; r<size; ++r) {
+        for(int c=0; c<size; ++c) {
+            if (!board.isEmpty(r,c)) {
+                empty = false;
+                minR = std::min(minR, r);
+                maxR = std::max(maxR, r);
+                minC = std::min(minC, c);
+                maxC = std::max(maxC, c);
+            }
+        }
+    }
+    
+    if (empty) {
+        moves.push_back({size/2, size/2, side});
+        return moves;
+    }
+    
+    // Expand bounds by 2
+    minR = std::max(0, minR - 2);
+    maxR = std::min(size-1, maxR + 2);
+    minC = std::max(0, minC - 2);
+    maxC = std::min(size-1, maxC + 2);
 
-    for (int r = 0; r < size; ++r) {
-        for (int c = 0; c < size; ++c) {
-            if (!board.isEmpty(r, c)) {
-                emptyBoard = false;
-                // Check neighbors within radius 2
-                for (int dr = -2; dr <= 2; ++dr) {
+    for (int r = minR; r <= maxR; ++r) {
+        for (int c = minC; c <= maxC; ++c) {
+            if (board.isEmpty(r, c)) {
+                // Check if it has neighbor within 2
+                bool hasNeighbor = false;
+                for (int dr = -2; dr <= 2 && !hasNeighbor; ++dr) {
                     for (int dc = -2; dc <= 2; ++dc) {
-                        int nr = r + dr;
-                        int nc = c + dc;
-                        if (board.isInside(nr, nc) && board.isEmpty(nr, nc)) {
-                            if (!visited[nr * size + nc]) {
-                                visited[nr * size + nc] = true;
-                                moves.push_back({nr, nc, side});
-                            }
-                        }
+                         int nr = r + dr;
+                         int nc = c + dc;
+                         if (board.isInside(nr, nc) && !board.isEmpty(nr, nc)) {
+                             hasNeighbor = true;
+                             break;
+                         }
                     }
+                }
+                if (hasNeighbor) {
+                    moves.push_back({r, c, side});
                 }
             }
         }
     }
 
-    if (emptyBoard) {
-        moves.push_back({size / 2, size / 2, side});
+    return moves;
+}
+
+std::optional<Move> GomokuBot::getFastRandomMove(const Board& board, Player side) {
+    int size = board.size();
+    // Try finding a random neighbor move by picking a random occupied cell and looking around it
+    // If board is empty, center.
+    
+    // Optimization: Instead of scanning whole board for occupied cells, we just pick random coordinates
+    // and see if they are valid.
+    // BUT "valid" means "near other stones".
+    
+    // Better approach for speed:
+    // Just collect occupied cells? No, too slow to do every time.
+    
+    // Hybrid approach:
+    // Try 10 times to pick a random spot within the bounding box of current stones?
+    // We don't track bounding box in Board.
+    
+    // Let's just do the Candidate Move logic but STOP after finding ONE random one?
+    // No, that biases towards top-left.
+    
+    // We need a fast way to get a "neighboring empty cell".
+    
+    // Gather all occupied cells (fast enough for 15x15 usually < 100 stones)
+    // If > 100 stones, board is half full, random picking works well.
+    
+    static thread_local std::vector<std::pair<int,int>> stones;
+    stones.clear();
+    stones.reserve(225);
+    
+    for(int r=0; r<size; ++r) {
+        for(int c=0; c<size; ++c) {
+            if(!board.isEmpty(r,c)) {
+                stones.push_back({r,c});
+            }
+        }
     }
     
-    return moves;
+    if (stones.empty()) {
+        return Move{size/2, size/2, side};
+    }
+    
+    std::shuffle(stones.begin(), stones.end(), rng);
+    
+    // Try neighbors of random stones
+    for(const auto& s : stones) {
+        int r = s.first;
+        int c = s.second;
+        
+        // Randomize neighbor order
+        int drs[] = {-1, -1, -1, 0, 0, 1, 1, 1};
+        int dcs[] = {-1, 0, 1, -1, 1, -1, 0, 1};
+        int indices[] = {0,1,2,3,4,5,6,7};
+        
+        // Partial shuffle of indices
+        for (int i = 0; i < 8; ++i) {
+             int j = std::uniform_int_distribution<>(i, 7)(rng);
+             std::swap(indices[i], indices[j]);
+        }
+        
+        for(int idx : indices) {
+            int nr = r + drs[idx];
+            int nc = c + dcs[idx];
+            if(board.isInside(nr, nc) && board.isEmpty(nr, nc)) {
+                return Move{nr, nc, side};
+            }
+        }
+    }
+    
+    return std::nullopt;
 }
 
 // Simplified check for 5-in-row or blocking 4-in-row

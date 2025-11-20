@@ -33,6 +33,7 @@ public:
     
     // Exposed for search helpers that need the same move ordering heuristics
     static std::vector<Move> getCandidateMoves(const Board& board, Player side);
+    static std::optional<Move> getFastRandomMove(const Board& board, Player side);
     
     // Analysis Mode
     void startAnalysis(const Board& board, Player side, std::function<void(double, int, double)> cb);
