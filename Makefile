@@ -12,8 +12,8 @@ LOCAL_BIN    := bin
 APP          := app
 MAIN         := main
 TEST         := test
-HEADERS      := $(wildcard $(SRC_DIR)/*.h)
-SRC          := $(wildcard $(SRC_DIR)/*.cpp)
+HEADERS      := $(shell find $(SRC_DIR) -name '*.h')
+SRC          := $(shell find $(SRC_DIR) -name '*.cpp')
 OBJ          := $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 TEST_SRC     := $(wildcard $(TEST_DIR)/*.cpp)
 TEST_OBJ     := $(TEST_SRC:$(TEST_DIR)/%.cpp=$(OBJ_DIR)/%.o)
@@ -38,7 +38,7 @@ else
   GLFLAGS    := -lGL -lGLU
 endif
 
-LDFLAGS := `fltk-config --ldflags` -lfltk_gl -lfltk_images $(GLFLAGS)
+LDFLAGS := `fltk-config --ldflags` -lfltk_gl $(GLFLAGS)
 
 # ==================================== RULES ================================================ #
 
@@ -48,6 +48,7 @@ $(OUT): $(OBJ) | $(OBJ_DIR) $(LOCAL_BIN_DIR)
 	$(CXX) $(OBJ) -o $(OUT) $(LDFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(OBJ_DIR):
@@ -74,7 +75,8 @@ $(OBJ_DIR)/$(TEST).o: $(TEST_DIR)/$(TEST).cpp | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(LOCAL_BIN_DIR)/$(APP) $(OBJ) $(LOCAL_BIN_DIR)/$(TEST) $(TEST_OBJ)
-	rmdir $(LOCAL_BIN_DIR) $(OBJ_DIR) 2> /dev/null || true
+	rm -f $(LOCAL_BIN_DIR)/$(APP) $(LOCAL_BIN_DIR)/$(TEST)
+	rm -rf $(OBJ_DIR)
+	rmdir $(LOCAL_BIN_DIR) 2> /dev/null || true
 
 .PHONY: all run test autograde clean

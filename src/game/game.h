@@ -1,8 +1,8 @@
 #ifndef GAME_H
 #define GAME_H
 
-#include "board.h"
-#include "bot.h"
+#include "../core/board.h"
+#include "../ai/bot.h"
 #include <vector>
 #include <optional>
 

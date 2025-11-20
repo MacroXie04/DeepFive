@@ -1,9 +1,12 @@
 #include "bobcat_ui/all.h"
-#include "game.h"
-#include "bot.h"
-#include "gomoku_canvas.h"
+#include "game/game.h"
+#include "ai/bot.h"
+#include "ui/gomoku_canvas.h"
+#include "ai/benchmark.h"
 #include <iostream>
 #include <string>
+#include <sstream>
+#include <iomanip>
 
 void updateTitle(bobcat::Window& window, const GomokuGame& game) {
     std::string status = "DeepFive - ";
@@ -27,7 +30,13 @@ int main(int argc, char **argv) {
     bobcat::Window window(850, 600, "DeepFive Gomoku");
 
     GomokuGame game(15);
-    GomokuBot bot(BotDifficulty::Normal);
+    GomokuBot bot;
+    
+    // Run Benchmark at start
+    // TODO: Show a splash screen? For now, print to console and set default
+    std::cout << "Running Benchmark..." << std::endl;
+    int sps = Benchmark::run(bot);
+    std::cout << "Benchmark Result: " << sps << " SPS" << std::endl;
 
     GomokuCanvas canvas(0, 0, 600, 600, "", &game);
     
@@ -46,11 +55,20 @@ int main(int argc, char **argv) {
     ddMode.value(0); 
     y += 60;
     
-    bobcat::Dropdown ddDiff(panelX, y, 200, 30, "Bot Difficulty");
-    ddDiff.add("Easy");
-    ddDiff.add("Normal");
-    ddDiff.add("Hard");
-    ddDiff.value(1);
+    bobcat::Dropdown ddBotStrength(panelX, y, 200, 30, "Bot Strength");
+    ddBotStrength.add("Instant (200ms)");
+    ddBotStrength.add("Auto (Dynamic)");
+    ddBotStrength.add("Thinking (2s)");
+    ddBotStrength.add("Extended (10s)");
+    
+    // Determine default strength based on Benchmark
+    if (sps > 10000) {
+        ddBotStrength.value(2); // Thinking
+        bot.setMode(BotMode::Thinking);
+    } else {
+        ddBotStrength.value(1); // Auto
+        bot.setMode(BotMode::Auto);
+    }
     y += 60;
     
     bobcat::Dropdown ddBotSide(panelX, y, 200, 30, "Bot Side");
@@ -59,14 +77,45 @@ int main(int argc, char **argv) {
     ddBotSide.value(0);
     y += 50;
 
+    // Status Text Box
+    std::stringstream initStats;
+    initStats << "Benchmark: " << sps << " SPS\n"
+              << "Rec. Mode: " << (sps > 10000 ? "Thinking" : "Auto");
+    
+    bobcat::TextBox txtStats(panelX, y, 220, 120, initStats.str());
+    txtStats.align(FL_ALIGN_INSIDE | FL_ALIGN_TOP_LEFT);
+    txtStats.labelcolor(FL_GRAY0);
+    y += 130;
+
+    // Helper to format stats
+    auto formatStats = [&](double winRate, int sims, double elapsedSec) {
+        std::stringstream ss;
+        ss << "Time: " << std::fixed << std::setprecision(1) << elapsedSec << "s\n"
+           << "Sims: " << sims << "\n"
+           << "Win Rate: " << std::fixed << std::setprecision(1) << winRate << "%\n";
+        return ss.str();
+    };
+
+    std::string lastStats = initStats.str();
+
     auto tryBotPlay = [&]() {
         if (game.isBotTurn()) {
             updateTitle(window, game);
             Fl::check();
             
+            bot.setSearchCallback([&](double winRate, int sims, double elapsedSec) {
+                std::string currentStats = "Thinking...\n" + formatStats(winRate, sims, elapsedSec);
+                txtStats.label(currentStats);
+                txtStats.redraw(); 
+                
+                lastStats = "Last Move:\n" + formatStats(winRate, sims, elapsedSec);
+            });
+
             if (game.playBotMove(bot)) {
                 canvas.redraw();
                 updateTitle(window, game);
+                txtStats.label(lastStats);
+                txtStats.redraw();
             }
         }
     };
@@ -79,6 +128,10 @@ int main(int argc, char **argv) {
         
         Player botSide = (ddBotSide.value() == 0) ? Player::White : Player::Black;
         game.setBotSide(botSide);
+        
+        // Reset stats but keep benchmark info? No, usually clear it.
+        txtStats.label("New Game Started");
+        lastStats = "";
         
         canvas.redraw();
         updateTitle(window, game);
@@ -98,6 +151,7 @@ int main(int argc, char **argv) {
             
             canvas.redraw();
             updateTitle(window, game);
+            txtStats.label("Undo performed");
         }
     });
 
@@ -107,12 +161,13 @@ int main(int argc, char **argv) {
         updateTitle(window, game);
         tryBotPlay();
     });
-
-    ddDiff.onChange([&](bobcat::Widget* w) {
-        int v = ddDiff.value();
-        if (v == 0) bot.setDifficulty(BotDifficulty::Easy);
-        else if (v == 1) bot.setDifficulty(BotDifficulty::Normal);
-        else bot.setDifficulty(BotDifficulty::Hard);
+    
+    ddBotStrength.onChange([&](bobcat::Widget* w) {
+        int v = ddBotStrength.value();
+        if (v == 0) bot.setMode(BotMode::Instant);
+        else if (v == 1) bot.setMode(BotMode::Auto);
+        else if (v == 2) bot.setMode(BotMode::Thinking);
+        else bot.setMode(BotMode::Extended);
     });
 
     ddBotSide.onChange([&](bobcat::Widget* w) {

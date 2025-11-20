@@ -7,7 +7,6 @@
 #include "dropdown.h"
 #include "float_input.h"
 #include "hexagon_button.h"
-#include "image.h"
 #include "input.h"
 #include "int_input.h"
 #include "list_box.h"

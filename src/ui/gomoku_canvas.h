@@ -2,7 +2,7 @@
 #define GOMOKU_CANVAS_H
 
 #include "bobcat_ui/canvas.h"
-#include "game.h"
+#include "../game/game.h"
 #include <functional>
 
 class GomokuCanvas : public bobcat::Canvas_ {

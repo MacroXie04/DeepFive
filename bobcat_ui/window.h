@@ -7,15 +7,12 @@
 #if defined(_WIN32)
     #include <FL/Enumerations.H>
     #include <FL/Fl_Double_Window.H>
-    #include <FL/Fl_PNG_Image.H>
 #elif defined(__APPLE__)
     #include <FL/Enumerations.H>
     #include <FL/Fl_Double_Window.H>
-    #include <FL/Fl_PNG_Image.H>
 #else
     #include <FL/Enumerations.H>
     #include <FL/Fl_Double_Window.H>
-    #include <FL/Fl_PNG_Image.H>
 #endif
 
 #include <string>
@@ -31,16 +28,16 @@ class Window : public Fl_Double_Window {
 
     std::string caption;
 
-    Fl_PNG_Image *icon_data;
+    // Fl_PNG_Image *icon_data;
 
     void init(){
         onShowCb = nullptr;
         onHideCb = nullptr;
         onClickCb = nullptr;
         willHideCb = nullptr;
-        icon_data = new Fl_PNG_Image("/usr/share/icons/big_m.png");
+        // icon_data = new Fl_PNG_Image("/usr/share/icons/big_m.png");
 
-        icon(icon_data);
+        // icon(icon_data);
     }
 
 public:
@@ -123,7 +120,7 @@ public:
     }
 
     ~Window(){
-        delete icon_data;
+        // delete icon_data;
     }
 
 

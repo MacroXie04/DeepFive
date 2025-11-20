@@ -16,7 +16,7 @@ include_directories(${FLTK_INCLUDE_DIRS})
 include_directories(${OPENGL_INCLUDE_DIR})
 
 # Source files
-file(GLOB SOURCES "src/*.cpp")
+file(GLOB_RECURSE SOURCES "src/*.cpp")
 
 # Executable
 add_executable(DeepFive ${SOURCES})
