@@ -69,7 +69,6 @@ MainWindow::MainWindow()
     }
     
     updateAllUI();
-    startBackgroundAnalysis();
 }
 
 void MainWindow::advanceY(int height) {
@@ -357,6 +356,7 @@ void MainWindow::setupCallbacks() {
 int MainWindow::run() {
     window.show();
     Fl::lock();
+    startBackgroundAnalysis();
     int exitCode = Fl::run();
     analysisBot.stopAnalysis();
     return exitCode;

@@ -96,7 +96,7 @@ std::vector<Move> getBlockMoves(const Board& board, Player defender) {
 
 ForcedNode* dfsVCF(ForcedNode* node, Player targetSide, int depth, int maxDepth) {
     if ((++nodesVisited & 0xFF) == 0) Fl::check();
-    if (nodesVisited > 500000) return nullptr;
+    if (nodesVisited > 2000000) return nullptr;
     if (depth > maxDepth) return nullptr;
 
     Player current = node->toMove;

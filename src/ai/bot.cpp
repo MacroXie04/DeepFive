@@ -75,15 +75,15 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     }
 
     // STEP 1: search forced wins (VCF)
-    // Using depth 15 for VCF as it is narrower
-    if (ForcedNode* forcedWin = BFS_FindWin(board, side, 15)) {
+    // Using depth 25 for VCF as it is narrower
+    if (ForcedNode* forcedWin = BFS_FindWin(board, side, 25)) {
          auto path = reconstructPath(forcedWin);
          if (!path.empty()) return path.front();
     }
 
     // STEP 2: forced defense (VCF Block)
     // Checks if opponent has a VCF we need to block
-    if (ForcedNode* forcedLose = BFS_FindLose(board, side, 11)) {
+    if (ForcedNode* forcedLose = BFS_FindLose(board, side, 17)) {
          auto path = reconstructPath(forcedLose);
          if (!path.empty()) {
              // path.front() is the opponent's winning move. We must block it.
@@ -225,23 +225,31 @@ std::pair<std::optional<Move>, int> GomokuBot::runMCTS(const Board& board, Playe
         int movesLimit = 225; // Max board size
         int movesMade = 0;
         
-        while (movesMade < movesLimit) {
-            if (rolloutBoard.checkWinner() != Player::None) {
-                winner = rolloutBoard.checkWinner();
-                break;
-            }
-            if (rolloutBoard.isFull()) {
-                winner = Player::None;
-                break;
-            }
+        // Check pre-rollout state
+        if (rolloutBoard.checkWinner() != Player::None) {
+             winner = rolloutBoard.checkWinner();
+        } else {
+            while (movesMade < movesLimit) {
+                if (rolloutBoard.isFull()) {
+                    winner = Player::None;
+                    break;
+                }
 
-            // Heavy rollout: pick moves near stones
-            std::optional<Move> randomMove = getFastRandomMove(rolloutBoard, rolloutPlayer);
-            if (!randomMove) break;
-            
-            rolloutBoard.placeStone(randomMove->row, randomMove->col, rolloutPlayer);
-            rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
-            movesMade++;
+                // Heavy rollout: pick moves near stones
+                std::optional<Move> randomMove = getFastRandomMove(rolloutBoard, rolloutPlayer);
+                if (!randomMove) break;
+                
+                rolloutBoard.placeStone(randomMove->row, randomMove->col, rolloutPlayer);
+                
+                Move lastMove = {randomMove->row, randomMove->col, rolloutPlayer};
+                if (rolloutBoard.checkWinner(lastMove) == rolloutPlayer) {
+                    winner = rolloutPlayer;
+                    break;
+                }
+                
+                rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
+                movesMade++;
+            }
         }
 
         // Backpropagation
@@ -347,19 +355,27 @@ void GomokuBot::startAnalysis(const Board& board, Player side, std::function<voi
             Player winner = Player::None;
             int movesLimit = 225;
             int movesMade = 0;
-            while (movesMade < movesLimit) {
-                if (rolloutBoard.checkWinner() != Player::None) {
-                    winner = rolloutBoard.checkWinner();
-                    break;
+            
+            if (rolloutBoard.checkWinner() != Player::None) {
+                winner = rolloutBoard.checkWinner();
+            } else {
+                while (movesMade < movesLimit) {
+                    if (rolloutBoard.isFull()) break;
+
+                    std::optional<Move> randomMove = getFastRandomMove(rolloutBoard, rolloutPlayer);
+                    if (!randomMove) break;
+
+                    rolloutBoard.placeStone(randomMove->row, randomMove->col, rolloutPlayer);
+                    
+                    Move lastMove = {randomMove->row, randomMove->col, rolloutPlayer};
+                    if (rolloutBoard.checkWinner(lastMove) == rolloutPlayer) {
+                        winner = rolloutPlayer;
+                        break;
+                    }
+
+                    rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
+                    movesMade++;
                 }
-                if (rolloutBoard.isFull()) break;
-
-                std::optional<Move> randomMove = getFastRandomMove(rolloutBoard, rolloutPlayer);
-                if (!randomMove) break;
-
-                rolloutBoard.placeStone(randomMove->row, randomMove->col, rolloutPlayer);
-                rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
-                movesMade++;
             }
 
             // Backprop
