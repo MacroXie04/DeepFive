@@ -1,111 +1,33 @@
 #include "ForcedBFS.h"
 #include "../ai/bot.h"
 #include <queue>
-#include <vector>
+#include <deque>
 #include <memory>
+#include <FL/Fl.H>
 
 // Thread-local storage to manage node memory without leaks.
 // Cleared at the start of each search.
-thread_local std::vector<std::unique_ptr<ForcedNode>> bfsNodePool;
+// Use std::deque to ensure pointers to elements remain valid upon insertion.
+thread_local std::deque<std::unique_ptr<ForcedNode>> bfsNodePool;
 
 ForcedNode* BFS_FindWin(const Board& board, Player side, int maxDepth) {
     bfsNodePool.clear();
     
-    // Initial candidates
-    // We are looking for a sequence of moves: Side -> Opponent -> Side -> ... -> Win
-    // BFS is level by level.
-    
-    // Root node
-    // Parent is nullptr, move is dummy.
-    // But wait, BFS usually explores states.
-    // We need to store the state.
-    
-    // Optimization: If we can win immediately, return it.
-    // But BFS will find it at depth 1.
-    
-    // We need to handle the "Opponent's Turn" correctly.
-    // In a forced win search:
-    // My turn: I choose ONE move that leads to a win.
-    // Opponent's turn: Opponent tries ALL moves to stop me. (Or I must win against ANY opponent move).
-    // This is Minimax / AND-OR tree.
-    // BFS is not standard for AND-OR trees unless we are just finding "A path".
-    // But "Forced Win" implies I win against BEST defense?
-    // Or just "I can win if I play this"?
-    // Usually "Forced Win" means "I have a VCF (Victory by Continuous Fours)".
-    // VCF is typically searched with DFS (Iterative Deepening).
-    // BFS for VCF is memory intensive.
-    
-    // However, the user asked for "BFS-based forced win search".
-    // And "Requirements: BFS must use a queue".
-    // If it's a simple BFS, it might just be finding a sequence of moves where I attack and opponent defends?
-    // If I attack (e.g. make a 4), opponent is FORCED to defend.
-    // So the branching factor at opponent's node is 1 (or very small).
-    // This makes it a path search.
-    
-    // Logic:
-    // 1. My turn: Try all attacking moves (candidates).
-    // 2. Opponent's turn: Check if they are forced to block (e.g. I have a 4).
-    //    If I have a 4, they MUST block. If they have multiple blocks, we must win against ALL.
-    //    But standard VCF usually assumes opponent plays the "forced" defense.
-    //    If opponent is NOT forced (i.e. I just played a random move), then the branching factor is huge.
-    //    "Forced Win" usually implies I keep making threats (4s or 3s).
-    
-    // I will implement a "Threat Search":
-    // My moves must create a threat (4 or 3).
-    // Opponent's moves must block the threat.
-    
-    // But the prompt says: "Only expand moves in a reduced region (based on getCandidateMoves)".
-    // It doesn't explicitly say "Only expand threats".
-    // But "Forced Win" implies it.
-    
-    // Let's implement a standard BFS on the game tree, but limited by depth and candidates.
-    // AND we need to handle the AND/OR nature?
-    // If it's just BFS, it finds "A path to win".
-    // If the opponent can refute it, it's not a forced win.
-    // But a simple BFS cannot easily verify "Win against ALL defenses" unless we treat opponent moves as "Forced".
-    
-    // Assumption: We are looking for a sequence where I attack and opponent is forced to reply.
-    // If opponent has multiple replies, and I only find a path against ONE, it's not a true forced win.
-    // But for this task, I will implement a BFS that expands:
-    // - My nodes: Try all candidates.
-    // - Opponent nodes: Try all candidates.
-    // If I find a win state, I return it.
-    // This is "Optimistic" search (finding *a* winning path), not a proof.
-    // But "Forced Win" usually implies proof.
-    
-    // Given the constraints and "BFS" requirement, I will implement:
-    // Queue of nodes.
-    // If it's MY turn:
-    //   Expand all candidates.
-    //   If any leads to win, great.
-    // If it's OPPONENT's turn:
-    //   Expand all candidates? That's huge.
-    //   BUT, usually in "Forced" search, we only consider opponent's FORCED moves.
-    //   I will check if I have a threat (e.g. 3 or 4).
-    //   If I have a 4, opponent MUST block.
-    //   If I have a 3, opponent might block.
-    
-    // To keep it simple and compliant:
-    // I will expand candidates from `getCandidateMoves`.
-    // If `depth > maxDepth`, stop.
-    // If `checkWinner` returns `side`, return node.
-    
-    // This is basically a shallow lookahead.
-    
     std::queue<ForcedNode*> q;
-    
-    // Create root
-    // Root represents the state BEFORE 'side' makes a move?
-    // No, BFS_FindWin is called with current board.
-    // We want to find a move for 'side'.
-    // So root is the current board.
-    // We expand root (My turn).
     
     bfsNodePool.push_back(std::make_unique<ForcedNode>(board, side, Move{-1,-1,Player::None}, nullptr, 0));
     ForcedNode* root = bfsNodePool.back().get();
     q.push(root);
     
+    int nodesVisited = 0;
+
     while (!q.empty()) {
+        // Keep UI responsive
+        if ((++nodesVisited & 0xFF) == 0) {
+             Fl::check();
+        }
+        if (nodesVisited > 200000) break; // Safety cutoff
+
         ForcedNode* node = q.front();
         q.pop();
         

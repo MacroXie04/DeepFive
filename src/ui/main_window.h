@@ -1,7 +1,7 @@
 #ifndef MAIN_WINDOW_H
 #define MAIN_WINDOW_H
 
-#include "../bobcat_ui/all.h"
+#include "bobcat_ui/all.h"
 #include "../game/game.h"
 #include "../ai/bot.h"
 #include "gomoku_canvas.h"

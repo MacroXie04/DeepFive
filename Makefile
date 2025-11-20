@@ -58,7 +58,7 @@ $(LOCAL_BIN_DIR):
 	mkdir -p $(LOCAL_BIN_DIR)
 
 run: all
-	@if [ -n "$$TERM" ]; then clear; fi
+	@if command -v clear >/dev/null 2>&1 && [ -n "$$TERM" ] && [ "$$TERM" != "dumb" ]; then clear; fi
 	@$(LOCAL_BIN_DIR)/$(APP)
 
 test: $(OBJ) $(TEST_OBJ) | $(BIN_DIR) $(LOCAL_BIN_DIR)

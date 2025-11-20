@@ -215,6 +215,7 @@ void MainWindow::setupCallbacks() {
     // Bot Play Logic
     tryBotPlay = [this]() {
         if (game.isBotTurn()) {
+            analysisBot.stopAnalysis();
             updateAllUI();
             progressBar.setProgress(0.0);
             Fl::check();
@@ -540,12 +541,17 @@ void MainWindow::timerTickLogic() {
 }
 
 void MainWindow::startBackgroundAnalysis() {
+    analysisBot.stopAnalysis();
+
     if (game.getState() == GameState::Finished) {
-        analysisBot.stopAnalysis();
         Player w = game.getWinner();
         if (w == Player::Black) winRateBar.setWinRate(100.0);
         else if (w == Player::White) winRateBar.setWinRate(0.0);
         else winRateBar.setWinRate(50.0);
+        return;
+    }
+
+    if (game.isBotTurn()) {
         return;
     }
     

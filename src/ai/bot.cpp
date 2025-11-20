@@ -12,8 +12,8 @@
 #include <thread>
 #include <atomic>
 
-// Random generator
-static std::mt19937 rng(std::random_device{}());
+// Thread-local random generator (independent per worker thread)
+static thread_local std::mt19937 rng(std::random_device{}());
 
 struct MCTSNode {
     Move move;
@@ -85,7 +85,12 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     // Checks if opponent has a forced win we need to block
     if (ForcedNode* forcedLose = BFS_FindLose(board, side, 6)) {
          auto path = reconstructPath(forcedLose);
-         if (!path.empty()) return path.front();
+         if (!path.empty()) {
+             // path.front() is the opponent's winning move. We must block it.
+             Move m = path.front();
+             m.player = side; 
+             return m;
+         }
     }
 
     int durationMs = 2000; // Default Thinking

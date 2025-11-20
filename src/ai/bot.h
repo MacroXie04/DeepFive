@@ -31,6 +31,9 @@ public:
 
     std::optional<Move> chooseMove(const Board& board, Player side);
     
+    // Exposed for search helpers that need the same move ordering heuristics
+    static std::vector<Move> getCandidateMoves(const Board& board, Player side);
+    
     // Analysis Mode
     void startAnalysis(const Board& board, Player side, std::function<void(double, int, double)> cb);
     void stopAnalysis();
@@ -51,7 +54,6 @@ private:
     std::pair<std::optional<Move>, int> runMCTS(const Board& board, Player side, int durationMs);
     
     // Heuristic Helpers
-    static std::vector<Move> getCandidateMoves(const Board& board, Player side);
     // Check for immediate win (5) or forced block (4)
     std::optional<Move> checkImmediateThreats(const Board& board, Player side);
 };

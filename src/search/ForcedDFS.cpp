@@ -1,12 +1,20 @@
 #include "ForcedDFS.h"
 #include "../ai/bot.h"
-#include <vector>
+#include <deque>
 #include <memory>
+#include <FL/Fl.H>
 
 // Thread-local storage for DFS nodes
-thread_local std::vector<std::unique_ptr<ForcedNode>> dfsNodePool;
+// Use std::deque to ensure pointers to elements remain valid upon insertion.
+thread_local std::deque<std::unique_ptr<ForcedNode>> dfsNodePool;
+thread_local int dfsNodesVisited = 0;
 
 ForcedNode* DFS_Recursive(ForcedNode* node, Player targetSide, int maxDepth) {
+    if ((++dfsNodesVisited & 0xFF) == 0) {
+        Fl::check();
+    }
+    if (dfsNodesVisited > 200000) return nullptr;
+
     if (node->depth >= maxDepth) return nullptr;
     
     Player currentPlayer = node->toMove;
@@ -40,6 +48,7 @@ ForcedNode* DFS_Recursive(ForcedNode* node, Player targetSide, int maxDepth) {
 
 ForcedNode* DFS_FindWin(const Board& board, Player side, int maxDepth) {
     dfsNodePool.clear();
+    dfsNodesVisited = 0;
     
     // Root
     dfsNodePool.push_back(std::make_unique<ForcedNode>(board, side, Move{-1,-1,Player::None}, nullptr, 0));
