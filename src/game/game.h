@@ -8,7 +8,8 @@
 
 enum class GameMode {
     HumanVsBot,
-    HumanVsHuman
+    HumanVsHuman,
+    BotVsBot
 };
 
 enum class GameState {
@@ -38,6 +39,7 @@ public:
     void reset();
 
     const std::vector<Move>& getHistory() const;
+    void forceWin(Player winnerPlayer);
 
 private:
     Board board;

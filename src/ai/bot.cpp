@@ -1,4 +1,7 @@
 #include "bot.h"
+#include "../search/ForcedBFS.h"
+#include "../search/ForcedDFS.h"
+#include "../search/PathReconstruction.h"
 #include <cmath>
 #include <chrono>
 #include <algorithm>
@@ -69,6 +72,20 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     // This is critical for Gomoku to avoid silly mistakes
     if (auto threatMove = checkImmediateThreats(board, side)) {
         return threatMove;
+    }
+
+    // STEP 1: search forced wins (BFS)
+    // Using depth 6 as requested
+    if (ForcedNode* forcedWin = BFS_FindWin(board, side, 6)) {
+         auto path = reconstructPath(forcedWin);
+         if (!path.empty()) return path.front();
+    }
+
+    // STEP 2: forced defense (BFS)
+    // Checks if opponent has a forced win we need to block
+    if (ForcedNode* forcedLose = BFS_FindLose(board, side, 6)) {
+         auto path = reconstructPath(forcedLose);
+         if (!path.empty()) return path.front();
     }
 
     int durationMs = 2000; // Default Thinking
@@ -285,6 +302,7 @@ void GomokuBot::startAnalysis(const Board& board, Player side, std::function<voi
 
         int simulations = 0;
         auto lastUpdate = std::chrono::steady_clock::now();
+        double lastWinRatePercent = -1.0;
 
         while (!stopAnalysisFlag) {
             auto now = std::chrono::steady_clock::now();
@@ -365,19 +383,18 @@ void GomokuBot::startAnalysis(const Board& board, Player side, std::function<voi
                     winRate = best->wins / best->visits;
                 }
                 
-                // Calculate Error Margin (approximate standard error for proportion)
-                // SE = sqrt(p(1-p)/n)
-                // We stop when 1.96 * SE * 100 < 0.5
-                // If visits is small, error is large.
-                double p = winRate;
-                if (best && best->visits > 50) { // Min visits to trust
-                     double se = std::sqrt(p * (1.0 - p) / best->visits);
-                     double marginError = 1.96 * se * 100.0;
-                     
-                     if (marginError < 0.5) {
-                         // Convergence reached
-                         stopAnalysisFlag = true;
+                double currentWinRatePercent = winRate * 100.0;
+                
+                // Stop if win rate stabilizes (change < 0.2% between updates)
+                // We need a reasonable number of visits to ensure stability isn't just lack of samples
+                if (best && best->visits > 200) { 
+                     if (lastWinRatePercent >= 0.0) {
+                         double diff = std::abs(currentWinRatePercent - lastWinRatePercent);
+                         if (diff < 0.2) {
+                             stopAnalysisFlag = true;
+                         }
                      }
+                     lastWinRatePercent = currentWinRatePercent;
                 }
 
                 double elapsedSec = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count() / 1000.0;

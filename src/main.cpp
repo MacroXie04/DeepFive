@@ -7,8 +7,28 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <functional>
 #include <FL/Enumerations.H>
 #include <FL/fl_draw.H>
+
+struct TimerLoopData {
+    std::function<void()> tick;
+    double interval{0.5};
+};
+
+void timerLoopCallback(void* userdata) {
+    auto data = static_cast<TimerLoopData*>(userdata);
+    if (data && data->tick) {
+        data->tick();
+    }
+    if (data) {
+        Fl::repeat_timeout(data->interval, timerLoopCallback, userdata);
+    }
+}
 
 class WinRateBar : public Fl_Box {
     double winRate; // Black's win rate (0-100)
@@ -148,6 +168,16 @@ int main(int argc, char **argv) {
     GomokuBot bot;
     GomokuBot analysisBot; // Dedicated for UI stats
     
+    int defaultTimerSeconds = 300;
+    int blackConfiguredSeconds = defaultTimerSeconds;
+    int whiteConfiguredSeconds = defaultTimerSeconds;
+    double blackTimeRemaining = static_cast<double>(blackConfiguredSeconds);
+    double whiteTimeRemaining = static_cast<double>(whiteConfiguredSeconds);
+    const double lowTimeThreshold = 10.0;
+    const double timerIntervalSeconds = 0.5;
+    bool timersRunning = false;
+    bool flashToggle = false;
+    
     // Run Benchmark at start
     std::cout << "Running Benchmark..." << std::endl;
     int sps = Benchmark::run(bot);
@@ -155,47 +185,134 @@ int main(int argc, char **argv) {
 
     GomokuCanvas canvas(0, 0, 600, 600, "", &game);
     
-    int panelX = 625; // Centered in the 250px sidebar (600-850)
-    int y = 20;
+    const int sidebarWidth = window.w() - canvas.w();
+    const int sidebarPadding = 10;
+    int panelX = canvas.w() + sidebarPadding; // 10px inset from canvas edge
+    const int panelWidth = sidebarWidth - sidebarPadding * 2;
+    int y = sidebarPadding;
+    const int sidebarSpacing = 8; // Reduced spacing for better fit
+    auto advanceY = [&](int height) {
+        y += height + sidebarSpacing;
+    };
+    
+    std::vector<Fl_Widget*> timerSetupWidgets;
+    std::vector<Fl_Widget*> timerDisplayWidgets;
     
     // Turn Indicator
-    bobcat::TextBox txtTurn(panelX, y, 200, 40, "Ready");
+    bobcat::TextBox txtTurn(panelX, y, panelWidth, 35, "Ready");
     txtTurn.box(FL_FLAT_BOX);
     txtTurn.align(FL_ALIGN_CENTER | FL_ALIGN_INSIDE);
     txtTurn.color(FL_GREEN);
     txtTurn.labelcolor(FL_BLACK);
-    y += 60;
+    advanceY(35);
 
-    bobcat::Button btnNewGame(panelX, y, 200, 30, "New Game");
-    y += 50;
+    bobcat::Button btnNewGame(panelX, y, panelWidth, 28, "New Game");
+    advanceY(28);
     
-    bobcat::Button btnUndo(panelX, y, 200, 30, "Undo");
-    y += 50;
+    bobcat::Button btnUndo(panelX, y, panelWidth, 28, "Undo");
+    advanceY(28);
     
-    bobcat::Dropdown ddMode(panelX, y, 200, 30, "Game Mode");
+    int timerAreaTop = y;
+    int timerSetupY = timerAreaTop;
+    auto advanceTimerSetupY = [&](int height) {
+        timerSetupY += height + sidebarSpacing;
+    };
+    
+    bobcat::TextBox txtTimerSetupTitle(panelX, timerSetupY, panelWidth, 18, "Timer Setup (sec)");
+    txtTimerSetupTitle.align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    timerSetupWidgets.push_back(&txtTimerSetupTitle);
+    advanceTimerSetupY(18);
+
+    bobcat::IntInput inputInitialTime(panelX, timerSetupY, panelWidth, 28, "");
+    inputInitialTime.value(blackConfiguredSeconds);
+    inputInitialTime.align(FL_ALIGN_LEFT);
+    timerSetupWidgets.push_back(&inputInitialTime);
+    advanceTimerSetupY(28);
+    
+    bobcat::TextBox txtTimerHint(panelX, timerSetupY, panelWidth, 36, "Press New Game after adjusting times.");
+    txtTimerHint.align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE | FL_ALIGN_WRAP);
+    txtTimerHint.labelsize(11);
+    timerSetupWidgets.push_back(&txtTimerHint);
+    advanceTimerSetupY(36);
+    
+    int timerDisplayY = timerAreaTop;
+    auto advanceTimerDisplayY = [&](int height) {
+        timerDisplayY += height + sidebarSpacing;
+    };
+    bobcat::TextBox timerBlackBlock(panelX, timerDisplayY, panelWidth, 28, "Black 05:00");
+    timerBlackBlock.box(FL_FLAT_BOX);
+    timerBlackBlock.align(FL_ALIGN_CENTER | FL_ALIGN_INSIDE);
+    timerBlackBlock.labelfont(FL_BOLD);
+    timerDisplayWidgets.push_back(&timerBlackBlock);
+    advanceTimerDisplayY(28);
+    
+    bobcat::TextBox timerWhiteBlock(panelX, timerDisplayY, panelWidth, 28, "White 05:00");
+    timerWhiteBlock.box(FL_FLAT_BOX);
+    timerWhiteBlock.align(FL_ALIGN_CENTER | FL_ALIGN_INSIDE);
+    timerWhiteBlock.labelfont(FL_BOLD);
+    timerDisplayWidgets.push_back(&timerWhiteBlock);
+    advanceTimerDisplayY(28);
+    
+    auto effectiveBottom = [&](int currentY) {
+        return (currentY > timerAreaTop) ? (currentY - sidebarSpacing) : timerAreaTop;
+    };
+    int timerAreaBottom = std::max(effectiveBottom(timerSetupY), effectiveBottom(timerDisplayY));
+    y = timerAreaBottom + sidebarSpacing;
+
+    const int dropdownHeight = 28;
+    const int labelHeight = 18; // Space reserved for dropdown label above the control
+    
+    // First dropdown: Game Mode
+    y += labelHeight; // Reserve space for label
+    bobcat::Dropdown ddMode(panelX, y, panelWidth, dropdownHeight, "Game Mode");
     ddMode.add("Human vs Bot");
     ddMode.add("Human vs Human");
+    ddMode.add("Bot vs Bot");
     ddMode.value(0); 
-    y += 50;
+    advanceY(dropdownHeight);
 
-    bobcat::Dropdown ddBotSide(panelX, y, 200, 30, "Bot Side");
+    // Second dropdown: Bot Side
+    y += labelHeight; // Reserve space for label
+    bobcat::Dropdown ddBotSide(panelX, y, panelWidth, dropdownHeight, "Bot Side");
     ddBotSide.add("Bot: White");
     ddBotSide.add("Bot: Black");
     ddBotSide.value(0);
-    y += 50;
+    advanceY(dropdownHeight);
     
-    bobcat::Dropdown ddBotStrength(panelX, y, 200, 30, "DeepFive Mode");
+    // Third dropdown: DeepFive Mode
+    y += labelHeight; // Reserve space for label
+    bobcat::Dropdown ddBotStrength(panelX, y, panelWidth, dropdownHeight, "DeepFive Mode");
     ddBotStrength.add("Auto");
     ddBotStrength.add("Instant");
     ddBotStrength.add("Thinking");
     ddBotStrength.add("Extended Thinking");
     ddBotStrength.add("Pro");
-    
+    advanceY(dropdownHeight);
+
+    auto getSelectedGameMode = [&]() -> GameMode {
+        int idx = ddMode.value();
+        if (idx == 1) return GameMode::HumanVsHuman;
+        if (idx == 2) return GameMode::BotVsBot;
+        return GameMode::HumanVsBot;
+    };
+
+    auto updateBotSideControl = [&]() {
+        if (getSelectedGameMode() == GameMode::HumanVsBot) {
+            ddBotSide.activate();
+        } else {
+            ddBotSide.deactivate();
+        }
+    };
+
+    updateBotSideControl();
+
     // Description Text Box
-    bobcat::TextBox txtModeDesc(panelX, y + 40, 200, 60, "Decides how long to think");
+    const int modeDescHeight = 50;
+    bobcat::TextBox txtModeDesc(panelX, y, panelWidth, modeDescHeight, "Decides how long to think");
     txtModeDesc.align(FL_ALIGN_INSIDE | FL_ALIGN_TOP_LEFT | FL_ALIGN_WRAP);
-    txtModeDesc.labelsize(12);
+    txtModeDesc.labelsize(11);
     txtModeDesc.labelcolor(FL_GRAY0);
+    advanceY(modeDescHeight);
     
     if (sps > 10000) {
         ddBotStrength.value(2); // Thinking
@@ -206,36 +323,168 @@ int main(int argc, char **argv) {
         bot.setMode(BotMode::Auto);
         txtModeDesc.label("Decides how long to think");
     }
-    y += 120;
     
     // Win Rate Bar
-    WinRateBar winRateBar(panelX, y, 200, 20);
-    y += 40;
+    const int winRateBarHeight = 18;
+    WinRateBar winRateBar(panelX, y, panelWidth, winRateBarHeight);
+    advanceY(winRateBarHeight);
     
     // Progress Bar (Hidden when not thinking)
-    ProgressBar progressBar(panelX, y, 200, 10);
-    // progressBar.hide(); 
-    y += 30;
+    const int progressBarHeight = 8;
+    ProgressBar progressBar(panelX, y, panelWidth, progressBarHeight);
+    advanceY(progressBarHeight);
 
-    // Status Text Box
+    // Status Text Box - Calculate remaining space
     std::stringstream initStats;
-    initStats << "Benchmark: " << sps << " SPS\n"
-              << "Rec. Mode: " << (sps > 10000 ? "Thinking" : "Auto");
+    initStats << "Analysis:\n"
+              << "SPS: 0\n"
+              << "Sims: 0";
     
-    bobcat::TextBox txtStats(panelX, y, 220, 120, initStats.str());
+    // Calculate remaining height for stats box
+    int remainingHeight = window.h() - y - sidebarPadding;
+    const int statsHeight = std::max(80, remainingHeight);
+    bobcat::TextBox txtStats(panelX, y, panelWidth, statsHeight, initStats.str());
     txtStats.align(FL_ALIGN_INSIDE | FL_ALIGN_TOP_LEFT);
     txtStats.labelcolor(FL_GRAY0);
-    y += 130;
+    txtStats.labelsize(11);
+    advanceY(statsHeight);
 
     auto formatStats = [&](double winRate, int sims, double elapsedSec) {
+        (void)winRate;
         std::stringstream ss;
-        ss << "Time: " << std::fixed << std::setprecision(1) << elapsedSec << "s\n"
-           << "Sims: " << sims << "\n"
-           << "Win Rate: " << std::fixed << std::setprecision(1) << winRate << "%\n";
+        int sps = (elapsedSec > 0.001) ? (int)(sims / elapsedSec) : 0;
+        ss << "SPS: " << sps << "\n"
+           << "Sims: " << sims;
         return ss.str();
     };
 
-    std::string lastStats = initStats.str();
+    std::string lastStats = "Analysis:\n" + formatStats(0, 0, 0);
+
+    auto formatTimerText = [](double seconds) {
+        if (seconds < 0) seconds = 0;
+        int total = static_cast<int>(std::round(seconds));
+        int mins = total / 60;
+        int secs = total % 60;
+        char buf[16];
+        std::snprintf(buf, sizeof(buf), "%02d:%02d", mins, secs);
+        return std::string(buf);
+    };
+
+    auto showSetupPanel = [&](bool showSetup) {
+        for (auto* w : timerSetupWidgets) {
+            if (showSetup) w->show();
+            else w->hide();
+        }
+        for (auto* w : timerDisplayWidgets) {
+            if (showSetup) w->hide();
+            else w->show();
+        }
+    };
+
+    auto updateTimerBlocks = [&]() {
+        auto setBlock = [&](bobcat::TextBox& block, const char* prefix, double timeValue, bool isActive, bool isBlackPlayer) {
+            std::string text = std::string(prefix) + " " + formatTimerText(timeValue);
+            block.copy_label(text.c_str());
+            bool isLow = timeValue <= lowTimeThreshold + 0.01;
+            Fl_Color color = FL_LIGHT2;
+            Fl_Color labelColor = FL_BLACK;
+            if (isActive) {
+                if (isLow) {
+                    Fl_Color colorA = isBlackPlayer ? FL_BLACK : FL_WHITE;
+                    Fl_Color colorB = isBlackPlayer ? fl_rgb_color(40, 40, 40) : fl_rgb_color(220, 220, 220);
+                    color = flashToggle ? colorA : colorB;
+                    labelColor = (isBlackPlayer ? FL_WHITE : FL_BLACK);
+                } else {
+                    color = isBlackPlayer ? FL_BLACK : FL_WHITE;
+                    labelColor = (isBlackPlayer ? FL_WHITE : FL_BLACK);
+                }
+            } else if (!isActive && isLow) {
+                color = FL_YELLOW;
+                labelColor = FL_BLACK;
+            }
+            block.color(color);
+            block.labelcolor(labelColor);
+            block.redraw();
+        };
+
+        bool hasMoves = !game.getHistory().empty();
+        bool playing = (game.getState() == GameState::Playing);
+        Player active = game.getCurrentPlayer();
+
+        setBlock(timerBlackBlock, "Black", blackTimeRemaining, hasMoves && playing && active == Player::Black, true);
+        setBlock(timerWhiteBlock, "White", whiteTimeRemaining, hasMoves && playing && active == Player::White, false);
+    };
+
+    auto refreshTimerPanels = [&]() {
+        bool hasMoves = !game.getHistory().empty();
+        showSetupPanel(!hasMoves);
+        timersRunning = hasMoves && game.getState() == GameState::Playing;
+        updateTimerBlocks();
+    };
+
+    auto applyTimerConfig = [&]() {
+        if (inputInitialTime.empty()) inputInitialTime.value(blackConfiguredSeconds);
+        int configured = std::max(1, inputInitialTime.value());
+        blackConfiguredSeconds = configured;
+        whiteConfiguredSeconds = configured;
+        blackTimeRemaining = static_cast<double>(blackConfiguredSeconds);
+        whiteTimeRemaining = static_cast<double>(whiteConfiguredSeconds);
+        flashToggle = false;
+        refreshTimerPanels();
+    };
+
+    applyTimerConfig();
+
+    auto updateAllUI = [&]() {
+        updateTitle(window, game);
+        updateTurnIndicator(txtTurn, game);
+        refreshTimerPanels();
+    };
+
+    auto handleTimeoutLoss = [&](Player loser) {
+        timersRunning = false;
+        analysisBot.stopAnalysis();
+        Player winnerPlayer = (loser == Player::Black) ? Player::White : Player::Black;
+        game.forceWin(winnerPlayer);
+        std::string msg = (loser == Player::Black ? "Black" : "White");
+        msg += " ran out of time";
+        txtStats.label(msg.c_str());
+        txtStats.redraw();
+        canvas.redraw();
+        updateAllUI();
+    };
+
+    auto timerTickLogic = [&]() {
+        bool hasMoves = !game.getHistory().empty();
+        if (!hasMoves) {
+            flashToggle = !flashToggle;
+            updateTimerBlocks();
+            return;
+        }
+
+        if (!timersRunning || game.getState() != GameState::Playing) {
+            flashToggle = !flashToggle;
+            updateTimerBlocks();
+            return;
+        }
+
+        Player active = game.getCurrentPlayer();
+        double& activeTime = (active == Player::Black) ? blackTimeRemaining : whiteTimeRemaining;
+        activeTime -= timerIntervalSeconds;
+        if (activeTime <= 0.0) {
+            activeTime = 0.0;
+            handleTimeoutLoss(active);
+            return;
+        }
+
+        flashToggle = !flashToggle;
+        updateTimerBlocks();
+    };
+
+    auto* timerLoop = new TimerLoopData();
+    timerLoop->interval = timerIntervalSeconds;
+    timerLoop->tick = timerTickLogic;
+    Fl::add_timeout(timerLoop->interval, timerLoopCallback, timerLoop);
 
     // Centralized Analysis Starter
     auto startBackgroundAnalysis = [&]() {
@@ -272,10 +521,10 @@ int main(int argc, char **argv) {
             });
     };
 
-    auto tryBotPlay = [&]() {
+    std::function<void()> tryBotPlay;
+    tryBotPlay = [&]() {
         if (game.isBotTurn()) {
-            updateTitle(window, game);
-            updateTurnIndicator(txtTurn, game);
+            updateAllUI();
             
             // Show progress bar
             progressBar.setProgress(0.0);
@@ -284,7 +533,7 @@ int main(int argc, char **argv) {
             Fl::check();
             
             bot.setSearchCallback([&](double winRate, int sims, double elapsedSec, double progress) {
-                std::string currentStats = "Bot Thinking...\n" + formatStats(winRate, sims, elapsedSec);
+                std::string currentStats = "Reasoning...\n" + formatStats(winRate, sims, elapsedSec);
                 txtStats.label(currentStats);
                 txtStats.redraw(); 
                 
@@ -295,29 +544,39 @@ int main(int argc, char **argv) {
 
             if (game.playBotMove(bot)) {
                 canvas.redraw();
-                updateTitle(window, game);
-                updateTurnIndicator(txtTurn, game);
+                updateAllUI();
                 txtStats.label(lastStats);
                 txtStats.redraw();
                 
                 // Hide progress bar
-                progressBar.setProgress(0.0);
+                progressBar.setProgress(1.0);
                 
                 // Bot moved, start analysis for Human's turn
                 startBackgroundAnalysis();
+
+                bool continueBotBattle = (getSelectedGameMode() == GameMode::BotVsBot && game.getState() == GameState::Playing);
+                if (continueBotBattle) {
+                    Fl::add_timeout(0.05, [](void* data) {
+                        auto fn = static_cast<std::function<void()>*>(data);
+                        (*fn)();
+                    }, &tryBotPlay);
+                }
             }
         }
     };
 
     btnNewGame.onClick([&](bobcat::Widget* w) {
+        applyTimerConfig();
         analysisBot.stopAnalysis();
         game.reset();
         
-        GameMode m = (ddMode.value() == 0) ? GameMode::HumanVsBot : GameMode::HumanVsHuman;
+        GameMode m = getSelectedGameMode();
         game.setMode(m);
         
         Player botSide = (ddBotSide.value() == 0) ? Player::White : Player::Black;
-        game.setBotSide(botSide);
+        if (m == GameMode::HumanVsBot) {
+            game.setBotSide(botSide);
+        }
         
         txtStats.label("New Game Started");
         lastStats = "";
@@ -325,8 +584,7 @@ int main(int argc, char **argv) {
         progressBar.setProgress(0.0);
         
         canvas.redraw();
-        updateTitle(window, game);
-        updateTurnIndicator(txtTurn, game);
+        updateAllUI();
         
         startBackgroundAnalysis();
         tryBotPlay();
@@ -337,15 +595,14 @@ int main(int argc, char **argv) {
             analysisBot.stopAnalysis();
             game.undoLastMove();
             
-            if (ddMode.value() == 0) {
+            if (getSelectedGameMode() == GameMode::HumanVsBot) {
                 if (game.isBotTurn() && game.canUndo()) {
                     game.undoLastMove();
                 }
             }
             
             canvas.redraw();
-            updateTitle(window, game);
-            updateTurnIndicator(txtTurn, game);
+            updateAllUI();
             txtStats.label("Undo performed");
             progressBar.setProgress(0.0);
             
@@ -355,10 +612,14 @@ int main(int argc, char **argv) {
 
     ddMode.onChange([&](bobcat::Widget* w) {
         analysisBot.stopAnalysis();
-        GameMode m = (ddMode.value() == 0) ? GameMode::HumanVsBot : GameMode::HumanVsHuman;
+        GameMode m = getSelectedGameMode();
         game.setMode(m);
-        updateTitle(window, game);
-        updateTurnIndicator(txtTurn, game);
+        if (m == GameMode::HumanVsBot) {
+            Player botSide = (ddBotSide.value() == 0) ? Player::White : Player::Black;
+            game.setBotSide(botSide);
+        }
+        updateBotSideControl();
+        updateAllUI();
         
         startBackgroundAnalysis();
         tryBotPlay();
@@ -392,12 +653,14 @@ int main(int argc, char **argv) {
     });
 
     ddBotSide.onChange([&](bobcat::Widget* w) {
+        if (getSelectedGameMode() != GameMode::HumanVsBot) {
+            return;
+        }
         analysisBot.stopAnalysis();
         Player botSide = (ddBotSide.value() == 0) ? Player::White : Player::Black;
         game.setBotSide(botSide);
         canvas.redraw();
-        updateTitle(window, game);
-        updateTurnIndicator(txtTurn, game);
+        updateAllUI();
         
         startBackgroundAnalysis();
         tryBotPlay();
@@ -405,15 +668,13 @@ int main(int argc, char **argv) {
 
     canvas.onMove([&]() {
         analysisBot.stopAnalysis(); // Stop old analysis
-        updateTitle(window, game);
-        updateTurnIndicator(txtTurn, game);
+        updateAllUI();
         
         startBackgroundAnalysis(); // Start new one
         tryBotPlay();
     });
     
-    updateTitle(window, game);
-    updateTurnIndicator(txtTurn, game);
+    updateAllUI();
     startBackgroundAnalysis(); // Initial analysis
 
     window.show();

@@ -51,7 +51,7 @@ private:
     std::pair<std::optional<Move>, int> runMCTS(const Board& board, Player side, int durationMs);
     
     // Heuristic Helpers
-    std::vector<Move> getCandidateMoves(const Board& board, Player side);
+    static std::vector<Move> getCandidateMoves(const Board& board, Player side);
     // Check for immediate win (5) or forced block (4)
     std::optional<Move> checkImmediateThreats(const Board& board, Player side);
 };

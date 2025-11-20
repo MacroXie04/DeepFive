@@ -35,7 +35,9 @@ Player GomokuGame::getWinner() const {
 }
 
 bool GomokuGame::isBotTurn() const {
-    return (mode == GameMode::HumanVsBot && state == GameState::Playing && currentPlayer == botSide);
+    if (state != GameState::Playing) return false;
+    if (mode == GameMode::BotVsBot) return true;
+    return (mode == GameMode::HumanVsBot && currentPlayer == botSide);
 }
 
 bool GomokuGame::canPlayAt(int row, int col) const {
@@ -100,6 +102,11 @@ void GomokuGame::reset() {
 
 const std::vector<Move>& GomokuGame::getHistory() const {
     return history;
+}
+
+void GomokuGame::forceWin(Player winnerPlayer) {
+    winner = winnerPlayer;
+    state = GameState::Finished;
 }
 
 void GomokuGame::checkGameStatus() {
