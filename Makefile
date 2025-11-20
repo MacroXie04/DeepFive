@@ -16,7 +16,7 @@ HEADERS      := $(shell find $(SRC_DIR) -name '*.h')
 SRC          := $(shell find $(SRC_DIR) -name '*.cpp')
 OBJ          := $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 TEST_SRC     := $(wildcard $(TEST_DIR)/*.cpp)
-TEST_OBJ     := $(TEST_SRC:$(TEST_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+TEST_OBJ     := $(TEST_SRC:$(TEST_DIR)/%.cpp=$(OBJ_DIR)/test/%.o)
 LOCAL_BIN_DIR:= $(LOCAL_BIN)
 BIN_DIR      := $(LOCAL_BIN)
 OUT          := $(BIN_DIR)/$(APP)
@@ -63,15 +63,13 @@ run: all
 
 test: $(OBJ) $(TEST_OBJ) | $(BIN_DIR) $(LOCAL_BIN_DIR)
 	$(CXX) $(filter-out $(OBJ_DIR)/$(MAIN).o,$(OBJ)) $(TEST_OBJ) -o $(TEST_OUT) $(LDFLAGS)
-	rm -f $(LOCAL_BIN_DIR)/$(TEST)
-	ln -s $(TEST_OUT) $(LOCAL_BIN_DIR)/$(TEST)
-	clear
 	$(LOCAL_BIN_DIR)/$(TEST) --output=color || true
 
 autograde: clean test
 	xvfb-run $(LOCAL_BIN_DIR)/$(TEST) || true
 
-$(OBJ_DIR)/$(TEST).o: $(TEST_DIR)/$(TEST).cpp | $(OBJ_DIR)
+$(OBJ_DIR)/test/%.o: $(TEST_DIR)/%.cpp | $(OBJ_DIR)
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:

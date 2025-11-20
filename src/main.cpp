@@ -56,10 +56,10 @@ int main(int argc, char **argv) {
     y += 60;
     
     bobcat::Dropdown ddBotStrength(panelX, y, 200, 30, "Bot Strength");
-    ddBotStrength.add("Instant (200ms)");
+    ddBotStrength.add("Instant (1s)");
     ddBotStrength.add("Auto (Dynamic)");
-    ddBotStrength.add("Thinking (2s)");
-    ddBotStrength.add("Extended (10s)");
+    ddBotStrength.add("Thinking (10s)");
+    ddBotStrength.add("Extended Thinking (30s)");
     
     // Determine default strength based on Benchmark
     if (sps > 10000) {
@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
         if (v == 0) bot.setMode(BotMode::Instant);
         else if (v == 1) bot.setMode(BotMode::Auto);
         else if (v == 2) bot.setMode(BotMode::Thinking);
-        else bot.setMode(BotMode::Extended);
+        else bot.setMode(BotMode::ExtendedThinking);
     });
 
     ddBotSide.onChange([&](bobcat::Widget* w) {

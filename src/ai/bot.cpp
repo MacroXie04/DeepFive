@@ -69,13 +69,13 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
 
     switch (currentMode) {
         case BotMode::Instant:
-            durationMs = 200;
+            durationMs = 1000;
             break;
         case BotMode::Thinking:
-            durationMs = 2000;
-            break;
-        case BotMode::Extended:
             durationMs = 10000;
+            break;
+        case BotMode::ExtendedThinking:
+            durationMs = 30000;
             break;
         case BotMode::Auto: {
             // Dynamic logic

@@ -12,7 +12,7 @@ enum class BotMode {
     Instant,
     Auto,
     Thinking,
-    Extended
+    ExtendedThinking
 };
 
 class GomokuBot {
