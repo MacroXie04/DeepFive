@@ -32,6 +32,7 @@ MainWindow::MainWindow()
     flashToggle = false;
 
     sidePanel.setupUI();
+    sidePanel.setInitialTime(blackConfiguredSeconds);
     setupCallbacks();
     
     // Initial Config
@@ -43,16 +44,12 @@ MainWindow::MainWindow()
     std::cout << "Benchmark Result: " << sps << " SPS" << std::endl;
     
     if (sps > 10000) {
-        sidePanel.getDdBotStrength().value(2); // Thinking
-        bot.setMode(BotMode::Thinking);
-        sidePanel.updateModeDescription(2);
+        sidePanel.getDdBotStrength().value(2); // Triggers onChange to set BotMode and Desc
     } else {
-        sidePanel.getDdBotStrength().value(0); // Auto
-        bot.setMode(BotMode::Auto);
-        sidePanel.updateModeDescription(0);
+        sidePanel.getDdBotStrength().value(0); // Triggers onChange to set BotMode and Desc
     }
     
-    updateAllUI();
+    // updateAllUI();
 }
 
 void MainWindow::setupCallbacks() {
@@ -235,7 +232,7 @@ void MainWindow::updateAllUI() {
     timersRunning = hasMoves && game.getState() == GameState::Playing;
     
     // Update Timer Blocks
-    bool playing = (game.getState() == GameState::Playing);
+    // bool playing = (game.getState() == GameState::Playing);
     Player active = game.getCurrentPlayer();
     sidePanel.updateTimerBlocks(blackTimeRemaining, whiteTimeRemaining, timersRunning, active, flashToggle);
     

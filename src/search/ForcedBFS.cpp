@@ -1,5 +1,5 @@
 #include "ForcedBFS.h"
-#include "../ai/bot.h"
+#include "../ai/heuristics.h"
 #include <queue>
 #include <deque>
 #include <memory>
@@ -50,7 +50,7 @@ bool isFour(const Board& board, int r, int c, Player p) {
 
 // Returns moves that create a 4 or 5.
 std::vector<Move> getVCFMoves(const Board& board, Player p) {
-    std::vector<Move> candidates = GomokuBot::getCandidateMoves(board, p);
+    std::vector<Move> candidates = Heuristics::getCandidateMoves(board, p);
     std::vector<Move> vcfMoves;
     vcfMoves.reserve(candidates.size());
     
@@ -79,7 +79,7 @@ std::vector<Move> getBlockMoves(const Board& board, Player defender) {
     // Use checkImmediateThreats logic from Bot
     // But we need ALL blocking moves.
     
-    std::vector<Move> candidates = GomokuBot::getCandidateMoves(board, defender);
+    std::vector<Move> candidates = Heuristics::getCandidateMoves(board, defender);
     
     // Identify threats by seeing where Attacker would play to win
     for (const auto& m : candidates) {

@@ -1,5 +1,6 @@
 #include "ForcedDFS.h"
 #include "../ai/bot.h"
+#include "../ai/heuristics.h"
 #include <deque>
 #include <memory>
 #include <FL/Fl.H>
@@ -20,7 +21,7 @@ ForcedNode* DFS_Recursive(ForcedNode* node, Player targetSide, int maxDepth) {
     Player currentPlayer = node->toMove;
     Player nextPlayer = (currentPlayer == Player::Black) ? Player::White : Player::Black;
     
-    std::vector<Move> moves = GomokuBot::getCandidateMoves(node->board, currentPlayer);
+    std::vector<Move> moves = Heuristics::getCandidateMoves(node->board, currentPlayer);
     
     for (const auto& mv : moves) {
         Board newBoard = node->board;
