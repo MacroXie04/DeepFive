@@ -62,11 +62,13 @@ run: all
 	@if command -v clear >/dev/null 2>&1 && [ -n "$$TERM" ] && [ "$$TERM" != "dumb" ]; then clear; fi
 	@$(LOCAL_BIN_DIR)/$(APP)
 
-test: $(OBJ) $(TEST_OBJ) | $(BIN_DIR) $(LOCAL_BIN_DIR)
+$(TEST_OUT): $(OBJ) $(TEST_OBJ) | $(BIN_DIR) $(LOCAL_BIN_DIR)
 	$(CXX) $(filter-out $(OBJ_DIR)/$(MAIN).o,$(OBJ)) $(TEST_OBJ) -o $(TEST_OUT) $(LDFLAGS)
+
+test: $(TEST_OUT)
 	$(LOCAL_BIN_DIR)/$(TEST) --output=color || true
 
-autograde: clean test
+autograde: clean $(TEST_OUT)
 	xvfb-run $(LOCAL_BIN_DIR)/$(TEST) || true
 
 $(OBJ_DIR)/test/%.o: $(TEST_DIR)/%.cpp | $(OBJ_DIR)
