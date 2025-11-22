@@ -1,0 +1,36 @@
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 100
+
+# Standardize pointer alignment
+PointerAlignment: Left
+
+# Sort includes automatically
+SortIncludes: true
+
+# Keep braces attached
+BreakBeforeBraces: Attach
+
+# Align trailing comments
+AlignTrailingComments: true
+
+# Allow short functions on a single line
+AllowShortFunctionsOnASingleLine: Inline
+
+# Fix namespace comments automatically
+FixNamespaceComments: true
+
+# Indent case labels in switch
+IndentCaseLabels: true
+
+# Space before assignment operators
+SpaceBeforeAssignmentOperators: true
+
+# No space in empty parentheses
+SpaceInEmptyParentheses: false
+
+# Spaces in container literals
+SpacesInContainerLiterals: true
+
+# Use spaces instead of tabs
+UseTab: Never

@@ -7,18 +7,15 @@
 #if defined(_WIN32)
     #include <FL/Enumerations.H>
     #include <FL/Fl_Gl_Window.H>
-    #include <FL/Fl_PNG_Image.H>
     #include <windows.h>
     #include <GL/gl.h>
 #elif defined(__APPLE__)
     #include <FL/Enumerations.H>
     #include <FL/Fl_Gl_Window.H>
-    #include <FL/Fl_PNG_Image.H>
     #include <OpenGL/gl.h>
 #else
     #include <FL/Enumerations.H>
     #include <FL/Fl_Gl_Window.H>
-    #include <FL/Fl_PNG_Image.H>
     #include <GL/gl.h>
 #endif
 

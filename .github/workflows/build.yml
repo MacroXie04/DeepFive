@@ -1,0 +1,33 @@
+name: Build with Makefile
+
+on:
+  push:
+    branches: [ main, game_dev ]
+  pull_request:
+    branches: [ main, game_dev ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get update
+        sudo apt-get install -y libfltk1.3-dev libgl1-mesa-dev xvfb
+
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install fltk
+
+
+    - name: Build
+      run: make all

@@ -85,8 +85,13 @@ public:
     }
 
     int value() const {
-        int temp = std::stoi(Fl_Input::value());
-        return temp;
+        const char* v = Fl_Input::value();
+        if (!v || v[0] == '\0') return 0;
+        try {
+            return std::stoi(v);
+        } catch (...) {
+            return 0;
+        }
     }
 
     void clear(){
