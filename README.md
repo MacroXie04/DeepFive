@@ -54,7 +54,7 @@ DeepFive is a high-performance, modern C++ implementation of the classic board g
 ## Project Structure
 
 - `src/core/`: Core game logic and board representation.
-- `src/ai/`: The MCTS engine and Bot logic.
+- `src/bot/`: The MCTS engine and Bot logic.
 - `src/search/`: Dedicated BFS/DFS solvers for VCF (Victory by Continuous Four).
 - `src/ui/`: Window management and OpenGL rendering code.
 - `bobcat_ui/`: Custom UI component wrappers.

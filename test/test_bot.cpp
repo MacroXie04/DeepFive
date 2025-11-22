@@ -1,5 +1,5 @@
 #include "test_utils.h"
-#include "../src/ai/bot.h"
+#include "../src/bot/bot.h"
 #include "../src/core/board.h"
 
 // Helper to print Player enum

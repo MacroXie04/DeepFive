@@ -1,5 +1,5 @@
 #include "ForcedBFS.h"
-#include "../ai/heuristics.h"
+#include "../bot/heuristics.h"
 #include <queue>
 #include <deque>
 #include <memory>

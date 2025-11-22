@@ -2,7 +2,7 @@
 #define GAME_H
 
 #include "../core/board.h"
-#include "../ai/bot.h"
+#include "../bot/bot.h"
 #include <vector>
 #include <optional>
 

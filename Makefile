@@ -1,6 +1,7 @@
 # ========================================================================================= #
-#  Bobcat UI Application Makefile       														#
+#  Bobcat UI Application Makefile       													#	#
 #  Hongzhe Xie                      														#
+#  CSE 030 Data Structure 															   		#
 #  University of California, Merced    												   		#
 # ========================================================================================= #
 

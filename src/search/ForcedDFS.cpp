@@ -1,6 +1,6 @@
 #include "ForcedDFS.h"
-#include "../ai/bot.h"
-#include "../ai/heuristics.h"
+#include "../bot/bot.h"
+#include "../bot/heuristics.h"
 #include <deque>
 #include <memory>
 #include <FL/Fl.H>

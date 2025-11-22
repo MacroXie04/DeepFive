@@ -3,7 +3,7 @@
 
 #include "bobcat_ui/all.h"
 #include "../game/game.h"
-#include "../ai/bot.h"
+#include "../bot/bot.h"
 #include "gomoku_canvas.h"
 #include "side_panel.h"
 #include <vector>

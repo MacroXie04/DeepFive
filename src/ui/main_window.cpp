@@ -1,5 +1,5 @@
 #include "main_window.h"
-#include "../ai/benchmark.h"
+#include "../bot/benchmark.h"
 #include <iostream>
 #include <sstream>
 #include <cmath>
