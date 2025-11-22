@@ -5,7 +5,7 @@
 // Helper to print Player enum
 static std::ostream& operator<<(std::ostream& os, Player p) {
     switch (p) {
-        case Player::None: os << "None"; break;
+        case Player::NoPlayer: os << "NoPlayer"; break;
         case Player::Black: os << "Black"; break;
         case Player::White: os << "White"; break;
     }

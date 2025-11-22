@@ -4,7 +4,7 @@
 // Helper to print Player enum
 static std::ostream& operator<<(std::ostream& os, Player p) {
     switch (p) {
-        case Player::None: os << "None"; break;
+        case Player::NoPlayer: os << "NoPlayer"; break;
         case Player::Black: os << "Black"; break;
         case Player::White: os << "White"; break;
     }
@@ -17,7 +17,7 @@ TEST_CASE(TestBoardInitialization) {
     
     for (int r = 0; r < 15; ++r) {
         for (int c = 0; c < 15; ++c) {
-            ASSERT_EQ(Player::None, board.at(r, c));
+            ASSERT_EQ(Player::NoPlayer, board.at(r, c));
             ASSERT_TRUE(board.isEmpty(r, c));
         }
     }
@@ -98,6 +98,6 @@ TEST_CASE(TestClearBoard) {
     
     board.clear();
     ASSERT_TRUE(board.isEmpty(7, 7));
-    ASSERT_EQ(Player::None, board.checkWinner());
+    ASSERT_EQ(Player::NoPlayer, board.checkWinner());
 }
 
