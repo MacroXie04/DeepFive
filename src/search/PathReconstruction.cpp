@@ -1,4 +1,5 @@
 #include "PathReconstruction.h"
+
 #include <algorithm>
 
 std::vector<Move> reconstructPath(ForcedNode* leaf) {

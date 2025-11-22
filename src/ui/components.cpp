@@ -15,18 +15,18 @@ void WinRateBar::setWinRate(double rate) {
 void WinRateBar::draw() {
     // Background (White)
     fl_rectf(x(), y(), w(), h(), FL_WHITE);
-    
+
     // Black portion (Left side)
     int blackW = (int)((winRate / 100.0) * w());
     fl_rectf(x(), y(), blackW, h(), FL_BLACK);
-    
+
     // Border
     fl_color(FL_GRAY0);
     fl_rect(x(), y(), w(), h());
-    
+
     // Text
     fl_font(FL_HELVETICA, 12);
-    
+
     // Draw Black % on the left (white text) if enough space
     if (blackW > 30) {
         fl_color(FL_WHITE);
@@ -34,7 +34,7 @@ void WinRateBar::draw() {
         snprintf(buf, sizeof(buf), "%.1f%%", winRate);
         fl_draw(buf, x() + 5, y(), blackW - 5, h(), FL_ALIGN_LEFT);
     }
-    
+
     // Draw White % on the right (black text) if enough space
     if (w() - blackW > 30) {
         fl_color(FL_BLACK);
@@ -59,12 +59,12 @@ void ProgressBar::setProgress(double p) {
 void ProgressBar::draw() {
     // Background
     fl_rectf(x(), y(), w(), h(), FL_WHITE);
-    
+
     // Fill
     int fillW = (int)(progress * w());
     fl_color(FL_GREEN);
     fl_rectf(x(), y(), fillW, h());
-    
+
     // Border
     fl_color(FL_GRAY0);
     fl_rect(x(), y(), w(), h());

@@ -32,14 +32,14 @@ ifeq ($(UNAME_S),Darwin)
   CXX        := clang++
   CXXFLAGS   := -Wall `fltk-config --cxxflags` -std=c++17 -DGL_SILENCE_DEPRECATION -I.
   GLFLAGS    := -framework OpenGL
+  LDFLAGS    := `fltk-config --ldflags` -lfltk_gl -lfltk_images $(GLFLAGS)
 else
   # assume Linux
   CXX        := g++
   CXXFLAGS   := -Wall `fltk-config --cxxflags` -std=c++17 -I.
   GLFLAGS    := -lGL -lGLU
+  LDFLAGS    := `fltk-config --use-gl --use-images --ldflags` $(GLFLAGS)
 endif
-
-LDFLAGS := `fltk-config --ldflags` -lfltk_gl -lfltk_images $(GLFLAGS)
 
 # ==================================== RULES ================================================ #
 
@@ -78,4 +78,13 @@ clean:
 	rm -rf $(OBJ_DIR)
 	rmdir $(LOCAL_BIN_DIR) 2> /dev/null || true
 
-.PHONY: all run test autograde clean
+.PHONY: all run test autograde clean lint memcheck format
+
+lint:
+	clang-format --dry-run --Werror $(SRC) $(HEADERS) $(TEST_SRC)
+
+format:
+	clang-format -i $(SRC) $(HEADERS) $(TEST_SRC)
+
+memcheck: $(TEST_OUT)
+	valgrind --leak-check=full --error-exitcode=1 $(TEST_OUT)

@@ -6,8 +6,8 @@
 struct ForcedNode {
     Board board;
     Player toMove;
-    Move move;            // move applied from parent -> this node
-    ForcedNode* parent;   // for path reconstruction
+    Move move;           // move applied from parent -> this node
+    ForcedNode* parent;  // for path reconstruction
     int depth;
 
     ForcedNode(const Board& b, Player p, Move m, ForcedNode* par, int d)

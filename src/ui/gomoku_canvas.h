@@ -8,11 +8,12 @@
 #undef None
 #endif
 
-#include "../game/game.h"
 #include <functional>
 
+#include "../game/game.h"
+
 class GomokuCanvas : public bobcat::Canvas_ {
-public:
+   public:
     GomokuCanvas(int x, int y, int w, int h, std::string title, GomokuGame* game);
 
     void setGame(GomokuGame* game);
@@ -20,7 +21,7 @@ public:
     void draw() override;
     void onMove(std::function<void()> cb);
 
-private:
+   private:
     GomokuGame* game;
     float cellSize;
     float boardSize;

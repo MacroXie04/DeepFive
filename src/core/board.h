@@ -3,11 +3,7 @@
 
 #include <vector>
 
-enum class Player {
-    NoPlayer,
-    Black,
-    White
-};
+enum class Player { NoPlayer, Black, White };
 
 struct Move {
     int row;
@@ -16,7 +12,7 @@ struct Move {
 };
 
 class Board {
-public:
+   public:
     explicit Board(int size = 15);
 
     int size() const;
@@ -30,7 +26,7 @@ public:
     bool isFull() const;
     void clear();
 
-private:
+   private:
     int boardSize;
     std::vector<Player> grid;
     int stoneCount;
@@ -39,4 +35,3 @@ private:
 };
 
 #endif
-

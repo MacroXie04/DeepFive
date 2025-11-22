@@ -1,14 +1,15 @@
 #ifndef MAIN_WINDOW_H
 #define MAIN_WINDOW_H
 
-#include "bobcat_ui/all.h"
-#include "../game/game.h"
+#include <functional>
+#include <string>
+#include <vector>
+
 #include "../bot/bot.h"
+#include "../game/game.h"
+#include "bobcat_ui/all.h"
 #include "gomoku_canvas.h"
 #include "side_panel.h"
-#include <vector>
-#include <string>
-#include <functional>
 
 struct TimerLoopData {
     std::function<void()> tick;
@@ -16,11 +17,11 @@ struct TimerLoopData {
 };
 
 class MainWindow {
-public:
+   public:
     MainWindow();
     int run();
 
-private:
+   private:
     // Window & Core
     bobcat::Window window;
     GomokuGame game;
@@ -47,7 +48,7 @@ private:
     void handleTimeoutLoss(Player loser);
     void timerTickLogic();
     void startBackgroundAnalysis();
-    
+
     // Helpers
     std::string formatStats(double winRate, int sims, double elapsedSec);
     GameMode getSelectedGameMode();

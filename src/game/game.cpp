@@ -1,10 +1,10 @@
 #include "game.h"
 
-GomokuGame::GomokuGame(int boardSize) 
-    : board(boardSize), 
-      mode(GameMode::HumanVsBot), 
-      state(GameState::Playing), 
-      currentPlayer(Player::Black), 
+GomokuGame::GomokuGame(int boardSize)
+    : board(boardSize),
+      mode(GameMode::HumanVsBot),
+      state(GameState::Playing),
+      currentPlayer(Player::Black),
       winner(Player::NoPlayer),
       botSide(Player::White) {}
 
@@ -46,7 +46,7 @@ bool GomokuGame::canPlayAt(int row, int col) const {
 
 bool GomokuGame::playHumanMove(int row, int col) {
     if (!canPlayAt(row, col)) return false;
-    if (isBotTurn()) return false; 
+    if (isBotTurn()) return false;
 
     if (board.placeStone(row, col, currentPlayer)) {
         history.push_back({row, col, currentPlayer});
@@ -61,7 +61,7 @@ bool GomokuGame::playHumanMove(int row, int col) {
 
 bool GomokuGame::playBotMove(GomokuBot& bot) {
     if (!isBotTurn()) return false;
-    
+
     std::optional<Move> move = bot.chooseMove(board, currentPlayer);
     if (move.has_value()) {
         if (board.placeStone(move->row, move->col, currentPlayer)) {
@@ -77,7 +77,7 @@ bool GomokuGame::playBotMove(GomokuBot& bot) {
 }
 
 bool GomokuGame::canUndo() const {
-    return !history.empty() && state != GameState::Finished; 
+    return !history.empty() && state != GameState::Finished;
 }
 
 void GomokuGame::undoLastMove() {
@@ -86,7 +86,7 @@ void GomokuGame::undoLastMove() {
     Move last = history.back();
     history.pop_back();
     board.removeStone(last.row, last.col);
-    
+
     currentPlayer = last.player;
     state = GameState::Playing;
     winner = Player::NoPlayer;
@@ -111,10 +111,10 @@ void GomokuGame::forceWin(Player winnerPlayer) {
 
 void GomokuGame::checkGameStatus() {
     if (history.empty()) return;
-    
+
     Move last = history.back();
     Player p = board.checkWinner(last);
-    
+
     if (p != Player::NoPlayer) {
         winner = p;
         state = GameState::Finished;

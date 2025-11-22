@@ -42,7 +42,7 @@ Player Board::checkWinner() const {
         for (int c = 0; c < boardSize; ++c) {
             Player p = at(r, c);
             if (p == Player::NoPlayer) continue;
-            
+
             if (checkDirection(r, c, 0, 1) == p) return p;
             if (checkDirection(r, c, 1, 0) == p) return p;
             if (checkDirection(r, c, 1, 1) == p) return p;
@@ -79,7 +79,7 @@ Player Board::checkDirection(int row, int col, int dr, int dc) const {
     if (p == Player::NoPlayer) return Player::NoPlayer;
 
     int count = 1;
-    
+
     for (int i = 1; i < 5; ++i) {
         if (at(row + i * dr, col + i * dc) == p) {
             count++;
@@ -99,4 +99,3 @@ Player Board::checkDirection(int row, int col, int dr, int dc) const {
     if (count >= 5) return p;
     return Player::NoPlayer;
 }
-

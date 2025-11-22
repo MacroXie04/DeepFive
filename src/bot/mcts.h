@@ -1,12 +1,13 @@
 #ifndef MCTS_H
 #define MCTS_H
 
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <vector>
+
 #include "../core/board.h"
 #include "heuristics.h"
-#include <vector>
-#include <memory>
-#include <functional>
-#include <atomic>
 
 struct MCTSNode {
     Move move;
@@ -24,25 +25,26 @@ struct MCTSNode {
 };
 
 class MCTSSolver {
-public:
+   public:
     MCTSSolver(const Board& board, Player side);
-    
+
     // Run for a fixed duration (ms)
     // callback: (winRate%, simulations, elapsedSec, progress0-1)
     void run(int durationMs, std::function<void(double, int, double, double)> statusCb = nullptr);
-    
+
     // Run until stopped
     // callback: (winRate%, simulations, elapsedSec)
-    void runContinuous(std::atomic<bool>& stopFlag, std::function<void(double, int, double)> statusCb);
-    
+    void runContinuous(std::atomic<bool>& stopFlag,
+                       std::function<void(double, int, double)> statusCb);
+
     std::pair<std::optional<Move>, int> getBestMove();
-    
-private:
+
+   private:
     std::unique_ptr<MCTSNode> root;
     Board rootBoard;
     // Player rootSide; // Unused
     int totalSimulations = 0;
-    
+
     // Perform one iteration of MCTS
     void step();
 };

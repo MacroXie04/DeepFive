@@ -1,0 +1,21 @@
+name: Memory Check
+
+on:
+  push:
+    branches: [ main, game_dev ]
+  pull_request:
+    branches: [ main, game_dev ]
+
+jobs:
+  memcheck:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfltk1.3-dev libgl1-mesa-dev xvfb valgrind
+
+    - name: Run Memory Check
+      run: xvfb-run make memcheck
