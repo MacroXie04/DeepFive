@@ -39,7 +39,7 @@ else
   GLFLAGS    := -lGL -lGLU
 endif
 
-LDFLAGS := `fltk-config --ldflags` -lfltk_gl $(GLFLAGS)
+LDFLAGS := `fltk-config --ldflags` -lfltk_gl -lfltk_images $(GLFLAGS)
 
 # ==================================== RULES ================================================ #
 

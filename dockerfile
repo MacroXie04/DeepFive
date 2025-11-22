@@ -49,15 +49,7 @@ COPY . .
 # ----------------------------------------------------------------------------------------------
 # Step 5: Build the application
 # ----------------------------------------------------------------------------------------------
-RUN mkdir -p bin objects \
- && for f in src/*.cpp; do \
-      echo "Compiling $f"; \
-      g++ -Wall $(fltk-config --cxxflags) -std=c++17 -c "$f" \
-         -o objects/$(basename "$f" .cpp).o; \
-    done \
- && echo "Linking into bin/app" \
- && g++ objects/*.o -o bin/app \
-        $(fltk-config --ldflags) -lfltk_gl -lfltk_images -lGL -lGLU
+RUN make all
 
 
 # ----------------------------------------------------------------------------------------------
