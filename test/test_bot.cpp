@@ -51,7 +51,7 @@ TEST_CASE(TestBotChooseMoveNonEmptyBoard) {
 
     ASSERT_TRUE(board.isInside(move.row, move.col));
     ASSERT_EQ(Player::White, move.player);
-    
+
     if (move.row == 7) {
         ASSERT_NE(7, move.col);
     }
