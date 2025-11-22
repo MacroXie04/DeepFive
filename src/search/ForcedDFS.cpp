@@ -33,7 +33,7 @@ ForcedNode* DFS_Recursive(ForcedNode* node, Player targetSide, int maxDepth) {
         }
         
         Player winner = newBoard.checkWinner();
-        if (winner != Player::None && winner != targetSide) {
+        if (winner != Player::NoPlayer && winner != targetSide) {
             continue; // Loss branch
         }
         
@@ -52,7 +52,7 @@ ForcedNode* DFS_FindWin(const Board& board, Player side, int maxDepth) {
     dfsNodesVisited = 0;
     
     // Root
-    dfsNodePool.push_back(std::make_unique<ForcedNode>(board, side, Move{-1,-1,Player::None}, nullptr, 0));
+    dfsNodePool.push_back(std::make_unique<ForcedNode>(board, side, Move{-1,-1,Player::NoPlayer}, nullptr, 0));
     ForcedNode* root = dfsNodePool.back().get();
     
     return DFS_Recursive(root, side, maxDepth);

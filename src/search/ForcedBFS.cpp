@@ -179,7 +179,7 @@ ForcedNode* BFS_FindWin(const Board& board, Player side, int maxDepth) {
         vcfNodePool.clear(); // Reset pool for new depth (optimization)
         nodesVisited = 0;
         
-        vcfNodePool.push_back(std::make_unique<ForcedNode>(board, side, Move{-1,-1,Player::None}, nullptr, 0));
+        vcfNodePool.push_back(std::make_unique<ForcedNode>(board, side, Move{-1,-1,Player::NoPlayer}, nullptr, 0));
         ForcedNode* root = vcfNodePool.back().get();
         
         ForcedNode* res = dfsVCF(root, side, 0, d);

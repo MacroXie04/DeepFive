@@ -4,7 +4,7 @@
 #include <vector>
 
 enum class Player {
-    None,
+    NoPlayer,
     Black,
     White
 };

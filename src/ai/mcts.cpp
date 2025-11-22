@@ -33,7 +33,7 @@ MCTSNode* MCTSNode::bestChild(double explorationValue) {
 MCTSSolver::MCTSSolver(const Board& board, Player side) 
     : rootBoard(board) {
     Player opponent = (side == Player::Black) ? Player::White : Player::Black;
-    root = std::make_unique<MCTSNode>(Move{-1, -1, Player::None}, nullptr, opponent);
+    root = std::make_unique<MCTSNode>(Move{-1, -1, Player::NoPlayer}, nullptr, opponent);
     root->untriedMoves = Heuristics::getCandidateMoves(board, side);
 }
 
@@ -70,17 +70,17 @@ void MCTSSolver::step() {
     // Simulation (Rollout)
     Player rolloutPlayer = (node->playerJustMoved == Player::Black) ? Player::White : Player::Black;
     Board rolloutBoard = tempBoard;
-    Player winner = Player::None;
+    Player winner = Player::NoPlayer;
     
     int movesLimit = 225;
     int movesMade = 0;
     
-    if (rolloutBoard.checkWinner() != Player::None) {
+    if (rolloutBoard.checkWinner() != Player::NoPlayer) {
          winner = rolloutBoard.checkWinner();
     } else {
         while (movesMade < movesLimit) {
             if (rolloutBoard.isFull()) {
-                winner = Player::None;
+                winner = Player::NoPlayer;
                 break;
             }
 
@@ -103,10 +103,10 @@ void MCTSSolver::step() {
     // Backpropagation
     while (node != nullptr) {
         node->visits++;
-        if (winner != Player::None) {
+        if (winner != Player::NoPlayer) {
             if (node->playerJustMoved == winner) {
                 node->wins += 1.0;
-            } else if (node->playerJustMoved != Player::None) {
+            } else if (node->playerJustMoved != Player::NoPlayer) {
                 node->wins += 0.0; 
             }
         } else {

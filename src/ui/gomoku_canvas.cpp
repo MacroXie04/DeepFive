@@ -96,7 +96,7 @@ void GomokuCanvas::drawStones() {
     for (int r = 0; r < gridSize; ++r) {
         for (int c = 0; c < gridSize; ++c) {
             Player p = b.at(r, c);
-            if (p != Player::None) {
+            if (p != Player::NoPlayer) {
                 float cx = (-boardLimit + c * step) * scaleX;
                 float cy = (boardLimit - r * step) * scaleY;
                 

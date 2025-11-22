@@ -5,7 +5,7 @@ GomokuGame::GomokuGame(int boardSize)
       mode(GameMode::HumanVsBot), 
       state(GameState::Playing), 
       currentPlayer(Player::Black), 
-      winner(Player::None),
+      winner(Player::NoPlayer),
       botSide(Player::White) {}
 
 void GomokuGame::setMode(GameMode m) {
@@ -89,14 +89,14 @@ void GomokuGame::undoLastMove() {
     
     currentPlayer = last.player;
     state = GameState::Playing;
-    winner = Player::None;
+    winner = Player::NoPlayer;
 }
 
 void GomokuGame::reset() {
     board.clear();
     history.clear();
     state = GameState::Playing;
-    winner = Player::None;
+    winner = Player::NoPlayer;
     currentPlayer = Player::Black;
 }
 
@@ -115,11 +115,11 @@ void GomokuGame::checkGameStatus() {
     Move last = history.back();
     Player p = board.checkWinner(last);
     
-    if (p != Player::None) {
+    if (p != Player::NoPlayer) {
         winner = p;
         state = GameState::Finished;
     } else if (board.isFull()) {
-        winner = Player::None;
+        winner = Player::NoPlayer;
         state = GameState::Finished;
     }
 }
