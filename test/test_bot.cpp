@@ -51,9 +51,7 @@ TEST_CASE(TestBotChooseMoveNonEmptyBoard) {
 
     ASSERT_TRUE(board.isInside(move.row, move.col));
     ASSERT_EQ(Player::White, move.player);
-    // Should not place on existing stone
-    ASSERT_NE(7, move.row);  // It's possible to be same row OR col, but not both.
-                             // Actually (7,7) is occupied.
+    
     if (move.row == 7) {
         ASSERT_NE(7, move.col);
     }
