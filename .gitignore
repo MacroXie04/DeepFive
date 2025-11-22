@@ -56,3 +56,8 @@ Makefile
 # OS and Editor files
 .DS_Store
 .vscode/
+
+# JetBrains files
+.idea/
+*.iml
+
