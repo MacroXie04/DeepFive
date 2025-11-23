@@ -2,9 +2,25 @@ name: Docker Build & Xpra Smoke-Test
 
 on:
   push:
-    branches: [ "main", "game_dev" ]
+    branches:
+      - main
+      - game_dev
+    paths:
+      - 'src/**'
+      - 'bobcat_ui/**'
+      - 'test/**'
+      - 'Makefile'
+      - 'dockerfile'
   pull_request:
-    branches: [ "main", "game_dev" ]
+    branches:
+      - main
+      - game_dev
+    paths:
+      - 'src/**'
+      - 'bobcat_ui/**'
+      - 'test/**'
+      - 'Makefile'
+      - 'dockerfile'
 
 jobs:
   build-test:
