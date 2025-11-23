@@ -2,9 +2,25 @@ name: Lint
 
 on:
   push:
-    branches: [ main, game_dev ]
+    branches:
+      - main
+      - game_dev
+    paths:
+      - 'src/**'
+      - 'bobcat_ui/**'
+      - 'test/**'
+      - 'Makefile'
+      - 'dockerfile'
   pull_request:
-    branches: [ main, game_dev ]
+    branches:
+      - main
+      - game_dev
+    paths:
+      - 'src/**'
+      - 'bobcat_ui/**'
+      - 'test/**'
+      - 'Makefile'
+      - 'dockerfile'
 
 jobs:
   lint:
