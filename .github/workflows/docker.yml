@@ -10,7 +10,7 @@ on:
       - 'bobcat_ui/**'
       - 'test/**'
       - 'Makefile'
-      - 'dockerfile'
+      - 'Dockerfile'
   pull_request:
     branches:
       - main
@@ -20,7 +20,7 @@ on:
       - 'bobcat_ui/**'
       - 'test/**'
       - 'Makefile'
-      - 'dockerfile'
+      - 'Dockerfile'
 
 jobs:
   build-test:
