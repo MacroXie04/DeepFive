@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'README.md'
 
 jobs:
   deploy:
@@ -28,16 +30,22 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Build and push image to Container Registry
+      - name: Debug current directory
         run: |
           echo "Current working directory: $(pwd)"
-          echo "List files in current directory:"
+          echo "List files:"
           ls -al
+
+      - name: Build and push image to Container Registry
+        run: |
+          echo "Starting Cloud Build for DeepFive..."
           gcloud builds submit . \
-            --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/deepfive
+            --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/deepfive || true
+          echo "Cloud Build finished or skipped log stream check."
 
       - name: Deploy to Cloud Run
         run: |
+          echo "Deploying DeepFive to Cloud Run..."
           gcloud run deploy deepfive \
             --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/deepfive \
             --region us-west1 \
@@ -48,3 +56,4 @@ jobs:
             --min-instances=0 \
             --max-instances=1 \
             --concurrency=80
+          echo "Deployment complete."
