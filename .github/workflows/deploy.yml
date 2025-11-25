@@ -1,24 +1,14 @@
 name: Deploy to Cloud Run
 
 on:
-  workflow_run:
-    workflows: ["Docker Build & Xpra Smoke-Test"]
-    types:
-      - completed
-    branches:
-      - main
-
   push:
     branches:
       - main
-    paths:
-      - '.github/workflows/deploy.yml'
 
 jobs:
   deploy:
     name: Build and Deploy to Cloud Run
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
     
     permissions:
       contents: read
