@@ -30,9 +30,11 @@ jobs:
 
       - name: Build and push image to Container Registry
         run: |
+          echo "Current working directory: $(pwd)"
+          echo "List files in current directory:"
+          ls -al
           gcloud builds submit . \
-            --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/deepfive \
-            --dockerfile dockerfile
+            --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/deepfive
 
       - name: Deploy to Cloud Run
         run: |
