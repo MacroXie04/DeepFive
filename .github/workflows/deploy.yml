@@ -1,7 +1,10 @@
 name: Deploy to Cloud Run
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Docker Build & Xpra Smoke-Test"]
+    types:
+      - completed
     branches:
       - main
 
@@ -9,6 +12,7 @@ jobs:
   deploy:
     name: Build and Deploy to Cloud Run
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     
     permissions:
       contents: read
@@ -38,5 +42,9 @@ jobs:
             --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/deepfive \
             --region us-west1 \
             --platform managed \
-            --allow-unauthenticated
-
+            --allow-unauthenticated \
+            --cpu=1 \
+            --memory=512Mi \
+            --min-instances=0 \
+            --max-instances=1 \
+            --concurrency=80
