@@ -1,3 +1,8 @@
+//
+// Original Bobcat UI Library
+// Modified by Hongzhe Xie
+//
+
 #ifndef BOBCAT_UI_IMAGE
 #define BOBCAT_UI_IMAGE
 

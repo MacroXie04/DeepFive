@@ -72,11 +72,7 @@ DeepFive's AI follows a two-tier decision-making process:
 Before building DeepFive, ensure you have:
 
 - **C++ Compiler**: GCC 7+, Clang 5+, or MSVC 2017+ with C++17 support
-- **FLTK**: Fast Light Toolkit 1.3 or 1.4
-  - macOS: `brew install fltk`
-  - Ubuntu/Debian: `sudo apt-get install fltk1.3-dev`
-- **OpenGL**: Usually pre-installed with your OS
-  - Linux: `sudo apt-get install libgl1-mesa-dev libglu1-mesa-dev`
+- **Bobcat UI**: Fast Light Toolkit for cross-platform GUI development (Note: Please use the included Bobcat UI library due to custom modifications; the STEAMplug version is not supported)
 - **Make**: Build automation tool
 - **Docker** (optional): For containerized deployment
 

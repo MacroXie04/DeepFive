@@ -1,3 +1,7 @@
+//
+// Original Bobcat UI Library
+//
+
 #ifndef BOBCAT_UI_MEMO
 #define BOBCAT_UI_MEMO
 
