@@ -148,5 +148,6 @@ TEST_CASE(TestBotVsBotGame) {
     }
 
     ASSERT_EQ((int)GameState::Finished, (int)game.getState());
-    std::cout << "Bot vs Bot game finished in " << moves << " moves. Winner: " << game.getWinner() << std::endl;
+    std::cout << "Bot vs Bot game finished in " << moves << " moves. Winner: " << game.getWinner()
+              << std::endl;
 }
