@@ -105,10 +105,10 @@ void GomokuGame::redo() {
 
     Move move = redoStack.back();
     redoStack.pop_back();
-    
+
     board.placeStone(move.row, move.col, move.player);
     history.push_back(move);
-    
+
     checkGameStatus();
     if (state == GameState::Playing) {
         switchTurn();

@@ -43,7 +43,7 @@ class Board {
 
     Player checkDirection(int row, int col, int dr, int dc) const;
     std::vector<std::pair<int, int>> getWinningLineInDirection(int row, int col, int dr,
-                                                                int dc) const;
+                                                               int dc) const;
 };
 
 #endif

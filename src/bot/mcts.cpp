@@ -10,9 +10,9 @@
 static thread_local std::mt19937 rng(std::random_device{}());
 
 // Rollout configuration
-constexpr int ROLLOUT_DEPTH_LIMIT = 100;       // Max moves in rollout
-constexpr double EVAL_GUIDED_PROB = 0.15;      // Low probability - evaluation is expensive
-constexpr double PROGRESSIVE_BIAS_SCALE = 0.5; // Scale factor for progressive bias
+constexpr int ROLLOUT_DEPTH_LIMIT = 100;        // Max moves in rollout
+constexpr double EVAL_GUIDED_PROB = 0.15;       // Low probability - evaluation is expensive
+constexpr double PROGRESSIVE_BIAS_SCALE = 0.5;  // Scale factor for progressive bias
 
 MCTSNode::MCTSNode(Move m, MCTSNode* p, Player justMoved, double bias)
     : move(m), parent(p), visits(0), wins(0.0), playerJustMoved(justMoved), heuristicBias(bias) {}
@@ -29,16 +29,16 @@ MCTSNode* MCTSNode::bestChild(double explorationValue, bool useProgressiveBias) 
         // Standard UCT formula
         double exploitation = child->wins / (double)child->visits;
         double exploration = explorationValue * std::sqrt(std::log(visits) / (double)child->visits);
-        
+
         // Progressive bias: decreases as visits increase
         // H / (visits + 1) where H is the heuristic bias
         double progressiveBias = 0.0;
         if (useProgressiveBias && child->heuristicBias > 0) {
             progressiveBias = PROGRESSIVE_BIAS_SCALE * child->heuristicBias / (child->visits + 1);
         }
-        
+
         double uctValue = exploitation + exploration + progressiveBias;
-        
+
         if (uctValue > bestValue) {
             bestValue = uctValue;
             best = child.get();
@@ -68,7 +68,7 @@ void MCTSSolver::step() {
         std::uniform_int_distribution<> dis(0, node->untriedMoves.size() - 1);
         int idx = dis(rng);
         Move move = node->untriedMoves[idx];
-        
+
         // O(1) removal: swap with last element and pop
         std::swap(node->untriedMoves[idx], node->untriedMoves.back());
         node->untriedMoves.pop_back();
@@ -76,7 +76,7 @@ void MCTSSolver::step() {
         Player currentPlayer =
             (node->playerJustMoved == Player::Black) ? Player::White : Player::Black;
         move.player = currentPlayer;
-        
+
         // Calculate heuristic bias only for the chosen node (lightweight version)
         double heuristicBias = Heuristics::getHeuristicBias(tempBoard, move);
 
@@ -107,9 +107,9 @@ void MCTSSolver::step() {
             }
 
             // Try fast threat move first (win or block)
-            std::optional<Move> selectedMove = 
+            std::optional<Move> selectedMove =
                 Heuristics::getFastThreatMove(rolloutBoard, rolloutPlayer);
-            
+
             // Use evaluation-guided move with some probability, else random
             if (!selectedMove) {
                 std::uniform_real_distribution<> probDist(0.0, 1.0);
@@ -119,7 +119,7 @@ void MCTSSolver::step() {
                     selectedMove = Heuristics::getFastRandomMove(rolloutBoard, rolloutPlayer);
                 }
             }
-            
+
             if (!selectedMove) break;
 
             rolloutBoard.placeStone(selectedMove->row, selectedMove->col, rolloutPlayer);
@@ -133,7 +133,7 @@ void MCTSSolver::step() {
             rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
             movesMade++;
         }
-        
+
         // If rollout didn't finish with a winner, the draw value (0.5) will be used
         // This happens when ROLLOUT_DEPTH_LIMIT is reached without a decisive result
     }
@@ -161,7 +161,7 @@ void MCTSSolver::step() {
 void MCTSSolver::run(int durationMs, std::function<void(double, int, double, double)> statusCb) {
     auto startTime = std::chrono::steady_clock::now();
     auto lastUpdate = startTime;
-    
+
     // Call callback immediately at start to show "thinking" status
     if (statusCb) {
         statusCb(50.0, 0, 0.0, 0.0);
@@ -226,7 +226,8 @@ void MCTSSolver::runContinuous(std::atomic<bool>& stopFlag,
                 if (currentWinRatePercent > 95.0 || currentWinRatePercent < 5.0) {
                     // Report final status and stop
                     double elapsedSec =
-                        std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count() /
+                        std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime)
+                            .count() /
                         1000.0;
                     if (statusCb) {
                         statusCb(currentWinRatePercent, totalSimulations, elapsedSec);

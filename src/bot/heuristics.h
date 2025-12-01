@@ -17,8 +17,8 @@ using BoardEvaluation = Evaluation::BoardEvaluation;
 // Re-export pattern scores
 using Patterns::SCORE_FIVE;
 using Patterns::SCORE_LIVE_FOUR;
-using Patterns::SCORE_RUSH_FOUR;
 using Patterns::SCORE_LIVE_THREE;
+using Patterns::SCORE_RUSH_FOUR;
 
 // ========== Move Generation ==========
 

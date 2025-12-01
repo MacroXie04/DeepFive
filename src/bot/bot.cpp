@@ -33,11 +33,16 @@ BotMode GomokuBot::getMode() const {
 
 const char* GomokuBot::getModeName() const {
     switch (currentMode) {
-        case BotMode::Instant: return "Instant";
-        case BotMode::Auto: return "Auto";
-        case BotMode::Thinking: return "Thinking";
-        case BotMode::Pro: return "Pro";
-        default: return "Unknown";
+        case BotMode::Instant:
+            return "Instant";
+        case BotMode::Auto:
+            return "Auto";
+        case BotMode::Thinking:
+            return "Thinking";
+        case BotMode::Pro:
+            return "Pro";
+        default:
+            return "Unknown";
     }
 }
 
@@ -148,7 +153,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     // 8. Use MCTS for position evaluation
     lastAlgorithmStage = AlgorithmStage::MCTS;
     auto scoredMoves = Heuristics::getScoredMoves(board, side);
-    
+
     int durationMs = 2000;  // Default
 
     switch (currentMode) {
@@ -192,7 +197,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
 
     auto cb = [this, &solver, side](double wr, int sims, double t, double p) {
         if (statusCallback) statusCallback(wr, sims, t, p);
-        
+
         // Send candidate evaluations for visualization (always, not just self-play)
         if (candidateCallback && sims > 50) {
             // Only update visualization after sufficient simulations
@@ -205,7 +210,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
                 candidateCallback(candidates);
             }
         }
-        
+
         Fl::check();
     };
 

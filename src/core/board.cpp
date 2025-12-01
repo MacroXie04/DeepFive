@@ -8,7 +8,7 @@ bool Board::zobristInitialized = false;
 
 void Board::initZobrist() {
     if (zobristInitialized) return;
-    
+
     std::mt19937_64 rng(0x5EED12345678ULL);  // Fixed seed for reproducibility
     for (int r = 0; r < 15; ++r) {
         for (int c = 0; c < 15; ++c) {
@@ -19,7 +19,8 @@ void Board::initZobrist() {
     zobristInitialized = true;
 }
 
-Board::Board(int size) : boardSize(size), grid(size * size, Player::NoPlayer), stoneCount(0), currentHash(0) {
+Board::Board(int size)
+    : boardSize(size), grid(size * size, Player::NoPlayer), stoneCount(0), currentHash(0) {
     initZobrist();
 }
 
@@ -48,11 +49,11 @@ bool Board::placeStone(int row, int col, Player player) {
     }
     grid[row * boardSize + col] = player;
     stoneCount++;
-    
+
     // Update Zobrist hash
     int playerIndex = (player == Player::Black) ? 0 : 1;
     currentHash ^= zobristTable[row][col][playerIndex];
-    
+
     return true;
 }
 
@@ -61,7 +62,7 @@ void Board::removeStone(int row, int col) {
         Player player = grid[row * boardSize + col];
         grid[row * boardSize + col] = Player::NoPlayer;
         stoneCount--;
-        
+
         // Update Zobrist hash (XOR is its own inverse)
         int playerIndex = (player == Player::Black) ? 0 : 1;
         currentHash ^= zobristTable[row][col][playerIndex];
@@ -137,7 +138,7 @@ Player Board::checkDirection(int row, int col, int dr, int dc) const {
 }
 
 std::vector<std::pair<int, int>> Board::getWinningLineInDirection(int row, int col, int dr,
-                                                                   int dc) const {
+                                                                  int dc) const {
     Player p = at(row, col);
     if (p == Player::NoPlayer) return {};
 

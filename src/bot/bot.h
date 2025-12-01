@@ -15,30 +15,40 @@ enum class BotMode { Instant, Auto, Thinking, Pro };
 
 // Algorithm stages used by the bot
 enum class AlgorithmStage {
-    Tengen,         // Opening move at center
-    DirectWin,      // Immediate winning move
-    BlockWin,       // Block opponent's winning move
-    DoubleThreat,   // Create double threat
-    BlockThreat,    // Block opponent's double threat
-    VCF,            // Victory by Continuous Fours
-    BlockVCF,       // Block opponent's VCF
-    VCT,            // Victory by Continuous Threes
-    MCTS            // Monte Carlo Tree Search
+    Tengen,        // Opening move at center
+    DirectWin,     // Immediate winning move
+    BlockWin,      // Block opponent's winning move
+    DoubleThreat,  // Create double threat
+    BlockThreat,   // Block opponent's double threat
+    VCF,           // Victory by Continuous Fours
+    BlockVCF,      // Block opponent's VCF
+    VCT,           // Victory by Continuous Threes
+    MCTS           // Monte Carlo Tree Search
 };
 
 // Get display name for algorithm stage
 inline const char* getAlgorithmStageName(AlgorithmStage stage) {
     switch (stage) {
-        case AlgorithmStage::Tengen: return "Opening (Tengen)";
-        case AlgorithmStage::DirectWin: return "Winning Move";
-        case AlgorithmStage::BlockWin: return "Block Win";
-        case AlgorithmStage::DoubleThreat: return "Double Threat";
-        case AlgorithmStage::BlockThreat: return "Block Threat";
-        case AlgorithmStage::VCF: return "VCF Search";
-        case AlgorithmStage::BlockVCF: return "Block VCF";
-        case AlgorithmStage::VCT: return "VCT Search";
-        case AlgorithmStage::MCTS: return "MCTS";
-        default: return "Unknown";
+        case AlgorithmStage::Tengen:
+            return "Opening (Tengen)";
+        case AlgorithmStage::DirectWin:
+            return "Winning Move";
+        case AlgorithmStage::BlockWin:
+            return "Block Win";
+        case AlgorithmStage::DoubleThreat:
+            return "Double Threat";
+        case AlgorithmStage::BlockThreat:
+            return "Block Threat";
+        case AlgorithmStage::VCF:
+            return "VCF Search";
+        case AlgorithmStage::BlockVCF:
+            return "Block VCF";
+        case AlgorithmStage::VCT:
+            return "VCT Search";
+        case AlgorithmStage::MCTS:
+            return "MCTS";
+        default:
+            return "Unknown";
     }
 }
 
@@ -49,7 +59,7 @@ class GomokuBot {
 
     void setMode(BotMode mode);
     BotMode getMode() const;
-    
+
     // Get display name for current bot mode
     const char* getModeName() const;
 
@@ -64,7 +74,8 @@ class GomokuBot {
 
     // Candidate evaluation callback for visualization
     // vector of (row, col, player, score)
-    using CandidateCallback = std::function<void(const std::vector<std::tuple<int, int, Player, float>>&)>;
+    using CandidateCallback =
+        std::function<void(const std::vector<std::tuple<int, int, Player, float>>&)>;
     void setCandidateCallback(CandidateCallback cb);
 
     std::optional<Move> chooseMove(const Board& board, Player side);

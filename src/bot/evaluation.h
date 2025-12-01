@@ -11,9 +11,9 @@ namespace Evaluation {
 // Move with evaluation score
 struct ScoredMove {
     Move move;
-    int attackScore;   // Score for our attack potential
-    int defenseScore;  // Score for blocking opponent
-    int positionScore; // Score for position value
+    int attackScore;    // Score for our attack potential
+    int defenseScore;   // Score for blocking opponent
+    int positionScore;  // Score for position value
     int totalScore() const { return attackScore + defenseScore + positionScore; }
 };
 
@@ -21,7 +21,7 @@ struct ScoredMove {
 struct BoardEvaluation {
     int blackScore;
     int whiteScore;
-    int blackThreats;   // Number of live threes and above
+    int blackThreats;  // Number of live threes and above
     int whiteThreats;
     float winProbability;  // Estimated win probability for current player
 };
@@ -44,4 +44,3 @@ double getHeuristicBias(const Board& board, const Move& move);
 }  // namespace Evaluation
 
 #endif
-

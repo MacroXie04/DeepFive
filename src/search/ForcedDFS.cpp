@@ -20,12 +20,12 @@ thread_local int vcfNodesVisited = 0;
 // Check if placing a stone creates a "Four" (4 in a row with at least one open end)
 static bool createsFour(const Board& board, int row, int col, Player player) {
     int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
-    
+
     for (auto& dir : directions) {
         int dr = dir[0];
         int dc = dir[1];
         int count = 1;
-        
+
         // Count forward
         int i = 1;
         while (board.isInside(row + i * dr, col + i * dc) &&
@@ -33,9 +33,9 @@ static bool createsFour(const Board& board, int row, int col, Player player) {
             count++;
             i++;
         }
-        bool openFront = board.isInside(row + i * dr, col + i * dc) &&
-                         board.isEmpty(row + i * dr, col + i * dc);
-        
+        bool openFront =
+            board.isInside(row + i * dr, col + i * dc) && board.isEmpty(row + i * dr, col + i * dc);
+
         // Count backward
         int j = 1;
         while (board.isInside(row - j * dr, col - j * dc) &&
@@ -43,9 +43,9 @@ static bool createsFour(const Board& board, int row, int col, Player player) {
             count++;
             j++;
         }
-        bool openBack = board.isInside(row - j * dr, col - j * dc) &&
-                        board.isEmpty(row - j * dr, col - j * dc);
-        
+        bool openBack =
+            board.isInside(row - j * dr, col - j * dc) && board.isEmpty(row - j * dr, col - j * dc);
+
         // A "Four" is exactly 4 stones with at least one open end
         if (count == 4 && (openFront || openBack)) {
             return true;
@@ -54,24 +54,25 @@ static bool createsFour(const Board& board, int row, int col, Player player) {
     return false;
 }
 
-// Get VCF moves: for attacker, moves that create a Four; for defender, moves that block attacker's Four
+// Get VCF moves: for attacker, moves that create a Four; for defender, moves that block attacker's
+// Four
 static std::vector<Move> getVCFMoves(const Board& board, Player currentPlayer, Player attacker) {
     std::vector<Move> moves;
     auto candidates = Heuristics::getCandidateMoves(board, currentPlayer);
-    
+
     if (currentPlayer == attacker) {
         // Attacker: find moves that create a Four
         for (const auto& mv : candidates) {
             Board temp = board;
             temp.placeStone(mv.row, mv.col, currentPlayer);
-            
+
             // Check if this move wins immediately
             if (temp.checkWinner() == currentPlayer) {
                 moves.clear();
                 moves.push_back(mv);
                 return moves;  // Winning move found, return immediately
             }
-            
+
             // Check if this creates a Four
             if (createsFour(temp, mv.row, mv.col, currentPlayer)) {
                 moves.push_back(mv);
@@ -89,7 +90,7 @@ static std::vector<Move> getVCFMoves(const Board& board, Player currentPlayer, P
             }
         }
     }
-    
+
     return moves;
 }
 
@@ -156,7 +157,7 @@ static ForcedNode* VCF_Recursive(ForcedNode* node, Player attacker, int maxDepth
     Player nextPlayer = (currentPlayer == Player::Black) ? Player::White : Player::Black;
 
     std::vector<Move> moves = getVCFMoves(node->board, currentPlayer, attacker);
-    
+
     // If no forcing moves available, VCF fails at this branch
     if (moves.empty()) return nullptr;
 
@@ -208,11 +209,11 @@ thread_local int vctNodesVisited = 0;
 // Check if placing creates a live three (活三: 3 stones with 2 open ends)
 static bool createsLiveThree(const Board& board, int row, int col, Player player) {
     int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
-    
+
     for (auto& dir : directions) {
         int dr = dir[0], dc = dir[1];
         int count = 1;
-        
+
         // Count forward
         int i = 1;
         while (board.isInside(row + i * dr, col + i * dc) &&
@@ -220,9 +221,9 @@ static bool createsLiveThree(const Board& board, int row, int col, Player player
             count++;
             i++;
         }
-        bool openFront = board.isInside(row + i * dr, col + i * dc) &&
-                         board.isEmpty(row + i * dr, col + i * dc);
-        
+        bool openFront =
+            board.isInside(row + i * dr, col + i * dc) && board.isEmpty(row + i * dr, col + i * dc);
+
         // Count backward
         int j = 1;
         while (board.isInside(row - j * dr, col - j * dc) &&
@@ -230,9 +231,9 @@ static bool createsLiveThree(const Board& board, int row, int col, Player player
             count++;
             j++;
         }
-        bool openBack = board.isInside(row - j * dr, col - j * dc) &&
-                        board.isEmpty(row - j * dr, col - j * dc);
-        
+        bool openBack =
+            board.isInside(row - j * dr, col - j * dc) && board.isEmpty(row - j * dr, col - j * dc);
+
         // Live three: exactly 3 stones with both ends open
         if (count == 3 && openFront && openBack) {
             return true;
@@ -245,26 +246,26 @@ static bool createsLiveThree(const Board& board, int row, int col, Player player
 static std::vector<Move> getVCTMoves(const Board& board, Player currentPlayer, Player attacker) {
     std::vector<Move> moves;
     auto candidates = Heuristics::getCandidateMoves(board, currentPlayer);
-    
+
     if (currentPlayer == attacker) {
         // Attacker: find moves that create live three or rush four
         for (const auto& mv : candidates) {
             Board temp = board;
             temp.placeStone(mv.row, mv.col, currentPlayer);
-            
+
             // Check if wins
             if (temp.checkWinner() == currentPlayer) {
                 moves.clear();
                 moves.push_back(mv);
                 return moves;
             }
-            
+
             // Check if creates four (forcing)
             if (createsFour(temp, mv.row, mv.col, currentPlayer)) {
                 moves.push_back(mv);
                 continue;
             }
-            
+
             // Check if creates live three (semi-forcing)
             if (createsLiveThree(temp, mv.row, mv.col, currentPlayer)) {
                 moves.push_back(mv);
@@ -280,19 +281,19 @@ static std::vector<Move> getVCTMoves(const Board& board, Player currentPlayer, P
                 moves.push_back(mv);
                 continue;
             }
-            
+
             // Block if creates four
             if (createsFour(temp, mv.row, mv.col, attacker)) {
                 moves.push_back(mv);
             }
         }
-        
+
         // If no forced blocks, defender can play anywhere reasonable
         if (moves.empty()) {
             return candidates;
         }
     }
-    
+
     return moves;
 }
 
@@ -307,7 +308,7 @@ static ForcedNode* VCT_Recursive(ForcedNode* node, Player attacker, int maxDepth
     Player nextPlayer = (currentPlayer == Player::Black) ? Player::White : Player::Black;
 
     std::vector<Move> moves = getVCTMoves(node->board, currentPlayer, attacker);
-    
+
     if (moves.empty()) return nullptr;
 
     for (const auto& mv : moves) {

@@ -10,16 +10,16 @@ namespace Patterns {
 
 // Pattern types with scores (more granular classification)
 enum class PatternType {
-    FIVE = 0,           // five in a row
-    LIVE_FOUR,          // live four
-    RUSH_FOUR,          // rush four
-    JUMP_FOUR,          // jump four
-    LIVE_THREE,         // live three
-    JUMP_LIVE_THREE,    // jump live three
-    SLEEP_THREE,        // sleep three
-    LIVE_TWO,           // live two
-    JUMP_LIVE_TWO,      // jump live two
-    SLEEP_TWO,          // sleep two
+    FIVE = 0,         // five in a row
+    LIVE_FOUR,        // live four
+    RUSH_FOUR,        // rush four
+    JUMP_FOUR,        // jump four
+    LIVE_THREE,       // live three
+    JUMP_LIVE_THREE,  // jump live three
+    SLEEP_THREE,      // sleep three
+    LIVE_TWO,         // live two
+    JUMP_LIVE_TWO,    // jump live two
+    SLEEP_TWO,        // sleep two
     NONE
 };
 
@@ -47,15 +47,15 @@ struct ThreatCount {
     int jumpFours = 0;
     int liveThrees = 0;
     int jumpLiveThrees = 0;
-    
+
     int totalFours() const { return liveFours + rushFours + jumpFours; }
     int totalThrees() const { return liveThrees + jumpLiveThrees; }
 };
 
 // Extract a line pattern as a string centered at (r,c)
 // '.' = empty, 'X' = player, 'O' = opponent, '#' = out of bounds
-std::string extractLinePattern(const Board& board, int r, int c, int dr, int dc, 
-                                Player player, int length = 9);
+std::string extractLinePattern(const Board& board, int r, int c, int dr, int dc, Player player,
+                               int length = 9);
 
 // Analyze a pattern string and return score
 int analyzePatternString(const std::string& pattern);
@@ -72,4 +72,3 @@ int fastHeuristicScore(const Board& board, int r, int c, Player player);
 }  // namespace Patterns
 
 #endif
-

@@ -140,7 +140,7 @@ static bool wouldWin(const Board& board, int r, int c, Player player) {
 std::optional<Move> getFastThreatMove(const Board& board, Player side) {
     Player opp = (side == Player::Black) ? Player::White : Player::Black;
     int size = board.size();
-    
+
     int minR = size, maxR = -1, minC = size, maxC = -1;
     for (int r = 0; r < size; ++r) {
         for (int c = 0; c < size; ++c) {
@@ -152,14 +152,14 @@ std::optional<Move> getFastThreatMove(const Board& board, Player side) {
             }
         }
     }
-    
+
     if (maxR < 0) return std::nullopt;
-    
+
     minR = std::max(0, minR - 1);
     maxR = std::min(size - 1, maxR + 1);
     minC = std::max(0, minC - 1);
     maxC = std::min(size - 1, maxC + 1);
-    
+
     // First pass: can we win?
     for (int r = minR; r <= maxR; ++r) {
         for (int c = minC; c <= maxC; ++c) {
@@ -168,7 +168,7 @@ std::optional<Move> getFastThreatMove(const Board& board, Player side) {
             }
         }
     }
-    
+
     // Second pass: must we block opponent's win?
     for (int r = minR; r <= maxR; ++r) {
         for (int c = minC; c <= maxC; ++c) {
@@ -177,7 +177,7 @@ std::optional<Move> getFastThreatMove(const Board& board, Player side) {
             }
         }
     }
-    
+
     return std::nullopt;
 }
 
@@ -208,17 +208,17 @@ std::optional<Move> checkImmediateThreats(const Board& board, Player side) {
 
 std::optional<Move> findDoubleThreat(const Board& board, Player side) {
     auto candidates = getCandidateMoves(board, side);
-    
+
     for (const auto& mv : candidates) {
         auto threats = Patterns::countThreats(board, mv.row, mv.col, side);
-        
+
         // Check for winning combinations
         if (threats.liveFours >= 1) return mv;
         if (threats.totalFours() >= 2) return mv;
         if (threats.totalFours() >= 1 && threats.totalThrees() >= 1) return mv;
         if (threats.totalThrees() >= 2) return mv;
     }
-    
+
     return std::nullopt;
 }
 
@@ -226,31 +226,31 @@ std::optional<Move> findDoubleThreat(const Board& board, Player side) {
 
 std::optional<Move> getBestHeuristicMove(const Board& board, Player side) {
     Player opp = (side == Player::Black) ? Player::White : Player::Black;
-    
+
     // 1. Can we win directly?
     for (const auto& mv : getCandidateMoves(board, side)) {
         if (wouldWin(board, mv.row, mv.col, side)) {
             return mv;
         }
     }
-    
+
     // 2. Must block opponent's win?
     for (const auto& mv : getCandidateMoves(board, side)) {
         if (wouldWin(board, mv.row, mv.col, opp)) {
             return mv;
         }
     }
-    
+
     // 3. Can we create a double threat?
     if (auto doubleThreat = findDoubleThreat(board, side)) {
         return doubleThreat;
     }
-    
+
     // 4. Must block opponent's double threat?
     if (auto oppDoubleThreat = findDoubleThreat(board, opp)) {
         return Move{oppDoubleThreat->row, oppDoubleThreat->col, side};
     }
-    
+
     // 5. Get best scored move
     auto scoredMoves = Evaluation::getScoredMoves(board, side);
     if (!scoredMoves.empty()) {
@@ -259,71 +259,73 @@ std::optional<Move> getBestHeuristicMove(const Board& board, Player side) {
         int threshold = (int)(bestScore * 0.8);
         topCount = 0;
         for (const auto& sm : scoredMoves) {
-            if (sm.totalScore() >= threshold) topCount++;
-            else break;
+            if (sm.totalScore() >= threshold)
+                topCount++;
+            else
+                break;
         }
-        
+
         if (topCount > 1) {
             std::uniform_int_distribution<> dis(0, topCount - 1);
             return scoredMoves[dis(rng)].move;
         }
-        
+
         return scoredMoves[0].move;
     }
-    
+
     return std::nullopt;
 }
 
 std::optional<Move> getEvaluationGuidedMove(const Board& board, Player side) {
     Player opp = (side == Player::Black) ? Player::White : Player::Black;
     auto candidates = getCandidateMoves(board, side);
-    
+
     if (candidates.empty()) {
         return getFastRandomMove(board, side);
     }
-    
+
     std::vector<std::pair<Move, int>> scored;
     scored.reserve(candidates.size());
-    
+
     for (const auto& mv : candidates) {
         int attack = Patterns::fastHeuristicScore(board, mv.row, mv.col, side);
         int defense = Patterns::fastHeuristicScore(board, mv.row, mv.col, opp);
         int total = attack + (int)(defense * 1.2);
         scored.push_back({mv, total});
     }
-    
-    std::sort(scored.begin(), scored.end(), 
+
+    std::sort(scored.begin(), scored.end(),
               [](const auto& a, const auto& b) { return a.second > b.second; });
-    
+
     if (scored[0].second >= 100000) {
         return scored[0].first;
     }
-    
+
     int maxMoves = std::min(5, (int)scored.size());
     std::vector<double> weights;
     double totalWeight = 0.0;
-    
+
     for (int i = 0; i < maxMoves; ++i) {
         double weight = std::exp(scored[i].second / 2000.0);
         weights.push_back(weight);
         totalWeight += weight;
     }
-    
+
     if (totalWeight == 0) {
         return scored[0].first;
     }
-    
+
     std::uniform_real_distribution<> dis(0.0, totalWeight);
     double sample = dis(rng);
     double cumulative = 0.0;
-    
+
     for (size_t i = 0; i < weights.size(); ++i) {
         cumulative += weights[i];
         if (sample <= cumulative) {
             return scored[i].first;
         }
     }
-    
+
     return scored[0].first;
 }
 

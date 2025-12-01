@@ -199,18 +199,18 @@ bool GomokuCanvas::pixelToCell(float x, float y, int& row, int& col) const {
 
 void GomokuCanvas::drawDashedCircle(float cx, float cy, float radius, float scaleX, float scaleY) {
     const int dashCount = 16;  // Number of dashes
-    
+
     glBegin(GL_LINES);
     for (int d = 0; d < dashCount; ++d) {
         // Draw every other segment (dashed effect)
         float startAngle = 2.0f * 3.14159f * d / dashCount;
         float endAngle = 2.0f * 3.14159f * (d + 0.5f) / dashCount;
-        
+
         float x1 = cx + radius * cos(startAngle) * scaleX;
         float y1 = cy + radius * sin(startAngle) * scaleY;
         float x2 = cx + radius * cos(endAngle) * scaleX;
         float y2 = cy + radius * sin(endAngle) * scaleY;
-        
+
         glVertex2f(x1, y1);
         glVertex2f(x2, y2);
     }
@@ -263,7 +263,7 @@ void GomokuCanvas::drawPreviewMoves() {
             glColor4f(0.0f, 0.0f, 0.0f, 0.8f);
         else
             glColor4f(0.3f, 0.3f, 0.3f, 0.8f);
-        
+
         drawDashedCircle(cx, cy, radius, scaleX, scaleY);
         glLineWidth(1.0f);
     }
