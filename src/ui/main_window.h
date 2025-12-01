@@ -38,6 +38,9 @@ class MainWindow {
     bool timersRunning;
     bool flashToggle;
     std::string lastStats;
+    double lastWinRate = 50.0;
+    int lastSims = 0;
+    double lastElapsed = 0.0;
     std::function<void()> tryBotPlay;
 
     // Methods

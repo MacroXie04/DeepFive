@@ -50,6 +50,7 @@ bool GomokuGame::playHumanMove(int row, int col) {
 
     if (board.placeStone(row, col, currentPlayer)) {
         history.push_back({row, col, currentPlayer});
+        redoStack.clear();  // Clear redo stack on new move
         checkGameStatus();
         if (state == GameState::Playing) {
             switchTurn();
@@ -66,6 +67,7 @@ bool GomokuGame::playBotMove(GomokuBot& bot) {
     if (move.has_value()) {
         if (board.placeStone(move->row, move->col, currentPlayer)) {
             history.push_back({move->row, move->col, currentPlayer});
+            redoStack.clear();  // Clear redo stack on new move
             checkGameStatus();
             if (state == GameState::Playing) {
                 switchTurn();
@@ -77,7 +79,7 @@ bool GomokuGame::playBotMove(GomokuBot& bot) {
 }
 
 bool GomokuGame::canUndo() const {
-    return !history.empty() && state != GameState::Finished;
+    return !history.empty();  // Allow undo even after game finished
 }
 
 void GomokuGame::undoLastMove() {
@@ -85,23 +87,50 @@ void GomokuGame::undoLastMove() {
 
     Move last = history.back();
     history.pop_back();
+    redoStack.push_back(last);  // Push to redo stack
     board.removeStone(last.row, last.col);
 
     currentPlayer = last.player;
     state = GameState::Playing;
     winner = Player::NoPlayer;
+    winningLine.clear();
+}
+
+bool GomokuGame::canRedo() const {
+    return !redoStack.empty() && state == GameState::Playing;
+}
+
+void GomokuGame::redo() {
+    if (redoStack.empty()) return;
+
+    Move move = redoStack.back();
+    redoStack.pop_back();
+
+    board.placeStone(move.row, move.col, move.player);
+    history.push_back(move);
+
+    checkGameStatus();
+    if (state == GameState::Playing) {
+        switchTurn();
+    }
 }
 
 void GomokuGame::reset() {
     board.clear();
     history.clear();
+    redoStack.clear();
     state = GameState::Playing;
     winner = Player::NoPlayer;
     currentPlayer = Player::Black;
+    winningLine.clear();
 }
 
 const std::vector<Move>& GomokuGame::getHistory() const {
     return history;
+}
+
+const std::vector<std::pair<int, int>>& GomokuGame::getWinningLine() const {
+    return winningLine;
 }
 
 void GomokuGame::forceWin(Player winnerPlayer) {
@@ -118,6 +147,7 @@ void GomokuGame::checkGameStatus() {
     if (p != Player::NoPlayer) {
         winner = p;
         state = GameState::Finished;
+        winningLine = board.getWinningLine(last);
     } else if (board.isFull()) {
         winner = Player::NoPlayer;
         state = GameState::Finished;

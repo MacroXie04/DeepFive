@@ -55,8 +55,4 @@ RUN make all
 # Step 6: Launch Xpra server and start the application
 # ----------------------------------------------------------------------------------------------
 # Bind the Xpra server strictly to localhost on port 8964
-CMD xpra start :100 \
-    --bind-tcp=0.0.0.0:8964 \
-    --start-child=./bin/app \
-    --exit-with-children \
-    --daemon=no
+CMD ["xpra", "start", ":100", "--bind-tcp=0.0.0.0:8964", "--start-child=/app/bin/app", "--exit-with-children", "--daemon=no"]

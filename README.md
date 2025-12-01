@@ -1,24 +1,14 @@
 # DeepFive
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/MacroXie04/DeepFive)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20STEAMplug-lightgrey.svg)](https://github.com/MacroXie04/DeepFive)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**A sophisticated Gomoku AI with Monte Carlo Tree Search and tactical VCF solvers**
+DeepFive is a modern C++ implementation of Gomoku (Five-in-a-Row) featuring an intelligent bot engine that combines strategic MCTS planning with tactical forced-win detection, all wrapped in Bobcat UI user interface.
 
-DeepFive is a high-performance, modern C++ implementation of Gomoku (Five-in-a-Row) featuring an intelligent AI engine that combines strategic MCTS planning with tactical forced-win detection, all wrapped in a sleek OpenGL-rendered user interface.
 
----
-
-## Highlights
-
-- **Hybrid AI Engine**: MCTS for strategic play + specialized VCF/VCF-Block solvers for tactical precision
-- **High Performance**: Written in modern C++17 with optimized search algorithms
-- **Beautiful UI**: Hardware-accelerated OpenGL rendering with FLTK
-- **Real-time Analysis**: Watch the AI think with live statistics and search progress
-- **Docker Support**: Containerized deployment with X11 forwarding via Xpra
-
----
+![Screenshot.png](Screenshot.png)
+> In Bot vs Bot mode, real-time win rate calculation will be paused to save computational overhead.
 
 ## Features
 
@@ -26,17 +16,12 @@ DeepFive is a high-performance, modern C++ implementation of Gomoku (Five-in-a-R
 
 **Funnel Decision Model**
 
-DeepFive's AI follows a two-tier decision-making process:
+DeepFive's AI follows a multi-stage decision pipeline:
 
-1. **Tactical Layer**: High-priority VCF (Victory by Continuous Four) search using IDDFS
-   - Detects forced wins up to 25+ moves ahead
-   - Identifies defensive requirements against opponent threats
-   - Immediate execution when forced sequences are found
-
-2. **Strategic Layer**: Monte Carlo Tree Search with UCT
-   - Explores game tree probabilistically when no forced sequences exist
-   - Uses heuristic-guided random rollouts
-   - Balances exploration vs. exploitation with Upper Confidence Bound
+1. **Opening Book**: Optimal start (Tengen)
+2. **Instant Win/Loss**: Direct win detection and immediate threat blocking
+3. **Tactical Search**: VCF (Victory by Continuous Four) and VCT (Victory by Continuous Three)
+4. **Strategic Search**: Monte Carlo Tree Search (MCTS) for long-term planning
 
 **Difficulty Modes**
 
@@ -44,6 +29,7 @@ DeepFive's AI follows a two-tier decision-making process:
 - **Thinking**: Balanced depth and speed (1-2s), default mode
 - **Pro**: Deep analysis (5-10s) for maximum strength
 - **Auto**: Dynamic time allocation based on game stage and board complexity
+- **Tournament Mode**: Self-play capability with candidate move visualization
 
 **Search Capabilities**
 
@@ -58,10 +44,10 @@ DeepFive's AI follows a two-tier decision-making process:
 - **Interactive Gameplay**: Click-to-place stones with visual feedback
 - **Side Panel Analytics**:
   - Current player indicator
-  - Win rate estimation
-  - MCTS simulation count
-  - Search depth and node statistics
-  - VCF search status
+  - Real-time Win rate estimation
+  - Current Algorithm Stage (MCTS, VCF, VCT, etc.)
+  - Simulation statistics (Count and SPS)
+- **Visual Debugging**: Real-time rendering of candidate moves and their evaluation scores during self-play analysis
 - **Responsive Design**: Clean, intuitive layout with FLTK widgets
 - **Cross-platform**: Runs on macOS and Linux
 
@@ -134,9 +120,8 @@ Gomoku is played on a 15×15 grid. Two players alternate placing stones (black a
 **Side Panel Information**:
 - **Current Player**: Whose turn it is (Human/AI)
 - **Win Rate**: AI's estimated probability of winning (0-100%)
-- **Simulations**: Number of MCTS rollouts performed
-- **Search Depth**: Maximum depth explored in the game tree
-- **VCF Status**: Whether the AI found a forced win sequence
+- **Algorithm**: Current reasoning stage (e.g., MCTS, VCF, Block Threat)
+- **Simulations**: Number of rollouts and simulation speed (SPS)
 
 **Difficulty Selection**:
 - Choose your difficulty level before the game starts
@@ -187,20 +172,21 @@ DeepFive/
 ### AI Decision Algorithm
 
 ```
-Bot::getBestMove():
-  1. Tactical Check (VCF Solver)
-     ├─> Run ForcedBFS to find winning sequences
-     ├─> Run ForcedDFS to validate forced win paths
-     └─> If found: return first move of winning sequence
-  
-  2. Strategic Search (MCTS)
-     ├─> Initialize search tree from current position
-     ├─> For each iteration:
-     │   ├─> Selection: UCT tree policy
-     │   ├─> Expansion: add promising child nodes
-     │   ├─> Simulation: heuristic-guided rollout
-     │   └─> Backpropagation: update statistics
-     └─> Return move with highest visit count
+Bot::chooseMove():
+  1. Instant Response
+     ├─> Opening Book (Tengen)
+     ├─> Direct Win (Five-in-a-row)
+     └─> Critical Block (Stop opponent's Five)
+
+  2. Tactical Analysis
+     ├─> Double Threat Detection
+     ├─> VCF Search (Victory by Continuous Four)
+     └─> VCT Search (Victory by Continuous Three, Tournament mode)
+
+  3. Strategic Search (MCTS)
+     ├─> Initialize search tree
+     ├─> Iterative UCT simulation
+     └─> Select move with highest visit count
 ```
 
 **Key Algorithms**:
@@ -229,9 +215,6 @@ make
 ```bash
 # Build and run test suite
 make test
-
-# Run tests in headless mode (requires Xvfb)
-make autograde
 
 # Check for memory leaks (requires Valgrind)
 make memcheck

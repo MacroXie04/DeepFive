@@ -17,11 +17,13 @@ struct MCTSNode {
     double wins;
     std::vector<Move> untriedMoves;
     Player playerJustMoved;
+    double heuristicBias;  // Progressive bias from heuristic evaluation
 
-    MCTSNode(Move m, MCTSNode* p, Player justMoved);
+    MCTSNode(Move m, MCTSNode* p, Player justMoved, double bias = 0.0);
 
     bool isFullyExpanded() const;
-    MCTSNode* bestChild(double explorationValue = 1.41);
+    // UCT with optional progressive bias
+    MCTSNode* bestChild(double explorationValue = 1.41, bool useProgressiveBias = true);
 };
 
 class MCTSSolver {
@@ -39,10 +41,17 @@ class MCTSSolver {
 
     std::pair<std::optional<Move>, int> getBestMove();
 
+    // Get all candidate moves with their evaluation scores (0.0 to 1.0)
+    struct CandidateEval {
+        Move move;
+        float score;  // win rate normalized to 0.0-1.0
+        int visits;
+    };
+    std::vector<CandidateEval> getCandidateEvaluations() const;
+
    private:
     std::unique_ptr<MCTSNode> root;
     Board rootBoard;
-    // Player rootSide; // Unused
     int totalSimulations = 0;
 
     // Perform one iteration of MCTS
