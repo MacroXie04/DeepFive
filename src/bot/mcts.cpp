@@ -52,7 +52,10 @@ void MCTSSolver::step() {
         std::uniform_int_distribution<> dis(0, node->untriedMoves.size() - 1);
         int idx = dis(rng);
         Move move = node->untriedMoves[idx];
-        node->untriedMoves.erase(node->untriedMoves.begin() + idx);
+        
+        // O(1) removal: swap with last element and pop
+        std::swap(node->untriedMoves[idx], node->untriedMoves.back());
+        node->untriedMoves.pop_back();
 
         Player currentPlayer =
             (node->playerJustMoved == Player::Black) ? Player::White : Player::Black;
@@ -68,7 +71,7 @@ void MCTSSolver::step() {
         node = node->children.back().get();
     }
 
-    // Simulation (Rollout)
+    // Simulation (Rollout) with fast heuristic guidance
     Player rolloutPlayer = (node->playerJustMoved == Player::Black) ? Player::White : Player::Black;
     Board rolloutBoard = tempBoard;
     Player winner = Player::NoPlayer;
@@ -85,13 +88,20 @@ void MCTSSolver::step() {
                 break;
             }
 
-            std::optional<Move> randomMove =
-                Heuristics::getFastRandomMove(rolloutBoard, rolloutPlayer);
-            if (!randomMove) break;
+            // Try fast threat move first (win or block) - O(n) not O(n²)
+            std::optional<Move> selectedMove = 
+                Heuristics::getFastThreatMove(rolloutBoard, rolloutPlayer);
+            
+            // Fall back to random move if no immediate threat
+            if (!selectedMove) {
+                selectedMove = Heuristics::getFastRandomMove(rolloutBoard, rolloutPlayer);
+            }
+            
+            if (!selectedMove) break;
 
-            rolloutBoard.placeStone(randomMove->row, randomMove->col, rolloutPlayer);
+            rolloutBoard.placeStone(selectedMove->row, selectedMove->col, rolloutPlayer);
 
-            Move lastMove = {randomMove->row, randomMove->col, rolloutPlayer};
+            Move lastMove = {selectedMove->row, selectedMove->col, rolloutPlayer};
             if (rolloutBoard.checkWinner(lastMove) == rolloutPlayer) {
                 winner = rolloutPlayer;
                 break;
@@ -159,6 +169,7 @@ void MCTSSolver::runContinuous(std::atomic<bool>& stopFlag,
     auto startTime = std::chrono::steady_clock::now();
     auto lastUpdate = startTime;
     double lastWinRatePercent = -1.0;
+    int stableCount = 0;
 
     while (!stopFlag) {
         step();
@@ -176,12 +187,32 @@ void MCTSSolver::runContinuous(std::atomic<bool>& stopFlag,
 
             double currentWinRatePercent = winRate * 100.0;
 
-            // Stop if win rate stabilizes
+            // Early termination: position is clearly decisive
+            if (best && best->visits > 100) {
+                if (currentWinRatePercent > 95.0 || currentWinRatePercent < 5.0) {
+                    // Report final status and stop
+                    double elapsedSec =
+                        std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count() /
+                        1000.0;
+                    if (statusCb) {
+                        statusCb(currentWinRatePercent, totalSimulations, elapsedSec);
+                    }
+                    stopFlag = true;
+                    return;
+                }
+            }
+
+            // Stop if win rate stabilizes (require 3 consecutive stable readings)
             if (best && best->visits > 200) {
                 if (lastWinRatePercent >= 0.0) {
                     double diff = std::abs(currentWinRatePercent - lastWinRatePercent);
-                    if (diff < 0.2) {
-                        stopFlag = true;
+                    if (diff < 0.3) {
+                        stableCount++;
+                        if (stableCount >= 3) {
+                            stopFlag = true;
+                        }
+                    } else {
+                        stableCount = 0;
                     }
                 }
                 lastWinRatePercent = currentWinRatePercent;
@@ -214,4 +245,35 @@ std::pair<std::optional<Move>, int> MCTSSolver::getBestMove() {
         return {bestNode->move, totalSimulations};
     }
     return {std::nullopt, totalSimulations};
+}
+
+std::vector<MCTSSolver::CandidateEval> MCTSSolver::getCandidateEvaluations() const {
+    std::vector<CandidateEval> evals;
+    if (!root || root->children.empty()) return evals;
+
+    // Find max visits for normalization
+    int maxVisits = 0;
+    for (const auto& child : root->children) {
+        if (child->visits > maxVisits) {
+            maxVisits = child->visits;
+        }
+    }
+
+    if (maxVisits == 0) return evals;
+
+    for (const auto& child : root->children) {
+        if (child->visits > 0) {
+            CandidateEval eval;
+            eval.move = child->move;
+            eval.visits = child->visits;
+            // Score based on win rate and visit count
+            double winRate = child->wins / child->visits;
+            double visitRatio = (double)child->visits / maxVisits;
+            // Combine win rate (70%) and visit ratio (30%) for visual prominence
+            eval.score = (float)(winRate * 0.7 + visitRatio * 0.3);
+            evals.push_back(eval);
+        }
+    }
+
+    return evals;
 }

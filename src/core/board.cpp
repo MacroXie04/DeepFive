@@ -1,6 +1,27 @@
 #include "board.h"
 
-Board::Board(int size) : boardSize(size), grid(size * size, Player::NoPlayer), stoneCount(0) {}
+#include <random>
+
+// Static member initialization
+uint64_t Board::zobristTable[15][15][2];
+bool Board::zobristInitialized = false;
+
+void Board::initZobrist() {
+    if (zobristInitialized) return;
+    
+    std::mt19937_64 rng(0x5EED12345678ULL);  // Fixed seed for reproducibility
+    for (int r = 0; r < 15; ++r) {
+        for (int c = 0; c < 15; ++c) {
+            zobristTable[r][c][0] = rng();  // Black
+            zobristTable[r][c][1] = rng();  // White
+        }
+    }
+    zobristInitialized = true;
+}
+
+Board::Board(int size) : boardSize(size), grid(size * size, Player::NoPlayer), stoneCount(0), currentHash(0) {
+    initZobrist();
+}
 
 int Board::size() const {
     return boardSize;
@@ -27,13 +48,23 @@ bool Board::placeStone(int row, int col, Player player) {
     }
     grid[row * boardSize + col] = player;
     stoneCount++;
+    
+    // Update Zobrist hash
+    int playerIndex = (player == Player::Black) ? 0 : 1;
+    currentHash ^= zobristTable[row][col][playerIndex];
+    
     return true;
 }
 
 void Board::removeStone(int row, int col) {
     if (isInside(row, col) && grid[row * boardSize + col] != Player::NoPlayer) {
+        Player player = grid[row * boardSize + col];
         grid[row * boardSize + col] = Player::NoPlayer;
         stoneCount--;
+        
+        // Update Zobrist hash (XOR is its own inverse)
+        int playerIndex = (player == Player::Black) ? 0 : 1;
+        currentHash ^= zobristTable[row][col][playerIndex];
     }
 }
 
@@ -72,6 +103,11 @@ bool Board::isFull() const {
 void Board::clear() {
     std::fill(grid.begin(), grid.end(), Player::NoPlayer);
     stoneCount = 0;
+    currentHash = 0;
+}
+
+uint64_t Board::getHash() const {
+    return currentHash;
 }
 
 Player Board::checkDirection(int row, int col, int dr, int dc) const {
@@ -98,4 +134,60 @@ Player Board::checkDirection(int row, int col, int dr, int dc) const {
 
     if (count >= 5) return p;
     return Player::NoPlayer;
+}
+
+std::vector<std::pair<int, int>> Board::getWinningLineInDirection(int row, int col, int dr,
+                                                                   int dc) const {
+    Player p = at(row, col);
+    if (p == Player::NoPlayer) return {};
+
+    std::vector<std::pair<int, int>> line;
+    line.push_back({row, col});
+
+    // Extend in positive direction
+    for (int i = 1; i < 5; ++i) {
+        int nr = row + i * dr;
+        int nc = col + i * dc;
+        if (at(nr, nc) == p) {
+            line.push_back({nr, nc});
+        } else {
+            break;
+        }
+    }
+
+    // Extend in negative direction
+    for (int i = 1; i < 5; ++i) {
+        int nr = row - i * dr;
+        int nc = col - i * dc;
+        if (at(nr, nc) == p) {
+            line.push_back({nr, nc});
+        } else {
+            break;
+        }
+    }
+
+    if (line.size() >= 5) return line;
+    return {};
+}
+
+std::vector<std::pair<int, int>> Board::getWinningLine(const Move& lastMove) const {
+    int r = lastMove.row;
+    int c = lastMove.col;
+
+    // Check all four directions
+    std::vector<std::pair<int, int>> line;
+
+    line = getWinningLineInDirection(r, c, 0, 1);  // Horizontal
+    if (!line.empty()) return line;
+
+    line = getWinningLineInDirection(r, c, 1, 0);  // Vertical
+    if (!line.empty()) return line;
+
+    line = getWinningLineInDirection(r, c, 1, 1);  // Diagonal
+    if (!line.empty()) return line;
+
+    line = getWinningLineInDirection(r, c, 1, -1);  // Anti-diagonal
+    if (!line.empty()) return line;
+
+    return {};
 }

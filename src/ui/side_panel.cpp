@@ -22,6 +22,7 @@ SidePanel::SidePanel(int x, int y, int w, int h)
       ddMode(0, 0, 0, 0, "Game Mode"),
       ddBotSide(0, 0, 0, 0, "Bot Side"),
       ddBotStrength(0, 0, 0, 0, "DeepFive Mode"),
+      chkSelfPlay(0, 0, 0, 0, "Self-Play (VCF/VCT)"),
       txtModeDesc(0, 0, 0, 0, "Decides how long to think"),
       winRateBar(0, 0, 0, 0),
       progressBar(0, 0, 0, 0),
@@ -119,12 +120,17 @@ void SidePanel::setupUI() {
 
     currentY += labelHeight;
     ddBotStrength.resize(panelX, currentY, panelWidth, dropdownHeight);
-    ddBotStrength.add("Auto");
     ddBotStrength.add("Instant");
+    ddBotStrength.add("Auto");
     ddBotStrength.add("Thinking");
-    ddBotStrength.add("Extended Thinking");
     ddBotStrength.add("Pro");
+    ddBotStrength.value(1);  // Default to Auto
     advanceY(dropdownHeight);
+
+    // Self-Play checkbox
+    const int checkboxHeight = 24;
+    chkSelfPlay.resize(panelX, currentY, panelWidth, checkboxHeight);
+    advanceY(checkboxHeight);
 
     const int modeDescHeight = 50;
     txtModeDesc.resize(panelX, currentY, panelWidth, modeDescHeight);
@@ -305,14 +311,13 @@ void SidePanel::updateBotSideControl(bool active) {
 
 void SidePanel::updateModeDescription(int strengthIndex) {
     std::string desc = "";
+    // Order: Instant(0), Auto(1), Thinking(2), Pro(3)
     if (strengthIndex == 0)
-        desc = "Decides how long to think";
-    else if (strengthIndex == 1)
         desc = "Answers right away";
+    else if (strengthIndex == 1)
+        desc = "Decides how long to think";
     else if (strengthIndex == 2)
         desc = "Thinks longer for better moves";
-    else if (strengthIndex == 3)
-        desc = "Thinks much longer for stronger moves";
     else
         desc = "Uses maximum thinking for the best play";
 

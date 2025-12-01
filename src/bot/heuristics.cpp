@@ -178,4 +178,318 @@ std::optional<Move> checkImmediateThreats(const Board& board, Player side) {
     return std::nullopt;
 }
 
+// Helper: count consecutive stones in a direction from (r,c), not including (r,c)
+static int countDirection(const Board& board, int r, int c, int dr, int dc, Player player) {
+    int count = 0;
+    int nr = r + dr;
+    int nc = c + dc;
+    while (board.isInside(nr, nc) && board.at(nr, nc) == player) {
+        count++;
+        nr += dr;
+        nc += dc;
+    }
+    return count;
+}
+
+// Helper: check if placing at (r,c) creates a line of 5+ for player
+static bool wouldWin(const Board& board, int r, int c, Player player) {
+    int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
+    for (auto& dir : directions) {
+        int count = 1;  // The stone we're placing
+        count += countDirection(board, r, c, dir[0], dir[1], player);
+        count += countDirection(board, r, c, -dir[0], -dir[1], player);
+        if (count >= 5) return true;
+    }
+    return false;
+}
+
+std::optional<Move> getFastThreatMove(const Board& board, Player side) {
+    Player opp = (side == Player::Black) ? Player::White : Player::Black;
+    int size = board.size();
+    
+    // Find bounds of existing stones
+    int minR = size, maxR = -1, minC = size, maxC = -1;
+    for (int r = 0; r < size; ++r) {
+        for (int c = 0; c < size; ++c) {
+            if (!board.isEmpty(r, c)) {
+                minR = std::min(minR, r);
+                maxR = std::max(maxR, r);
+                minC = std::min(minC, c);
+                maxC = std::max(maxC, c);
+            }
+        }
+    }
+    
+    if (maxR < 0) return std::nullopt;  // Empty board
+    
+    // Expand by 1
+    minR = std::max(0, minR - 1);
+    maxR = std::min(size - 1, maxR + 1);
+    minC = std::max(0, minC - 1);
+    maxC = std::min(size - 1, maxC + 1);
+    
+    // First pass: can we win?
+    for (int r = minR; r <= maxR; ++r) {
+        for (int c = minC; c <= maxC; ++c) {
+            if (board.isEmpty(r, c) && wouldWin(board, r, c, side)) {
+                return Move{r, c, side};
+            }
+        }
+    }
+    
+    // Second pass: must we block opponent's win?
+    for (int r = minR; r <= maxR; ++r) {
+        for (int c = minC; c <= maxC; ++c) {
+            if (board.isEmpty(r, c) && wouldWin(board, r, c, opp)) {
+                return Move{r, c, side};
+            }
+        }
+    }
+    
+    return std::nullopt;
+}
+
+// ============== Pattern Recognition and Scoring ==============
+
+// Analyze a line pattern in one direction
+// Returns: (consecutive count, open ends count, has gap)
+struct LineInfo {
+    int count;      // Consecutive stones (including the hypothetical one at r,c)
+    int openEnds;   // 0, 1, or 2 open ends
+    bool hasGap;    // Has a gap that can be filled
+};
+
+static LineInfo analyzeLineInDirection(const Board& board, int r, int c, 
+                                       int dr, int dc, Player player) {
+    LineInfo info = {1, 0, false};  // Start with the stone at (r,c)
+    
+    // Count forward
+    int countFwd = 0;
+    int gapFwd = 0;
+    int nr = r + dr, nc = c + dc;
+    while (board.isInside(nr, nc)) {
+        if (board.at(nr, nc) == player) {
+            countFwd++;
+        } else if (board.isEmpty(nr, nc) && gapFwd == 0) {
+            // Check if there's a stone after the gap
+            int nnr = nr + dr, nnc = nc + dc;
+            if (board.isInside(nnr, nnc) && board.at(nnr, nnc) == player) {
+                gapFwd = 1;
+                countFwd++;
+                nr = nnr;
+                nc = nnc;
+                continue;
+            } else {
+                info.openEnds++;
+                break;
+            }
+        } else {
+            if (board.isEmpty(nr, nc)) info.openEnds++;
+            break;
+        }
+        nr += dr;
+        nc += dc;
+    }
+    
+    // Count backward
+    int countBwd = 0;
+    int gapBwd = 0;
+    nr = r - dr;
+    nc = c - dc;
+    while (board.isInside(nr, nc)) {
+        if (board.at(nr, nc) == player) {
+            countBwd++;
+        } else if (board.isEmpty(nr, nc) && gapBwd == 0) {
+            int nnr = nr - dr, nnc = nc - dc;
+            if (board.isInside(nnr, nnc) && board.at(nnr, nnc) == player) {
+                gapBwd = 1;
+                countBwd++;
+                nr = nnr;
+                nc = nnc;
+                continue;
+            } else {
+                info.openEnds++;
+                break;
+            }
+        } else {
+            if (board.isEmpty(nr, nc)) info.openEnds++;
+            break;
+        }
+        nr -= dr;
+        nc -= dc;
+    }
+    
+    info.count = 1 + countFwd + countBwd;
+    info.hasGap = (gapFwd > 0 || gapBwd > 0);
+    
+    return info;
+}
+
+// Get the pattern type from line info
+static Pattern getPatternFromLine(const LineInfo& info) {
+    if (info.count >= 5) return Pattern::FIVE;
+    if (info.count == 4) {
+        if (info.openEnds == 2) return Pattern::LIVE_FOUR;
+        if (info.openEnds == 1) return Pattern::RUSH_FOUR;
+    }
+    if (info.count == 3) {
+        if (info.openEnds == 2) return Pattern::LIVE_THREE;
+        if (info.openEnds == 1) return Pattern::SLEEP_THREE;
+    }
+    if (info.count == 2) {
+        if (info.openEnds == 2) return Pattern::LIVE_TWO;
+        if (info.openEnds == 1) return Pattern::SLEEP_TWO;
+    }
+    return Pattern::NONE;
+}
+
+// Get score for a pattern
+static int getPatternScore(Pattern p) {
+    switch (p) {
+        case Pattern::FIVE: return SCORE_FIVE;
+        case Pattern::LIVE_FOUR: return SCORE_LIVE_FOUR;
+        case Pattern::RUSH_FOUR: return SCORE_RUSH_FOUR;
+        case Pattern::LIVE_THREE: return SCORE_LIVE_THREE;
+        case Pattern::SLEEP_THREE: return SCORE_SLEEP_THREE;
+        case Pattern::LIVE_TWO: return SCORE_LIVE_TWO;
+        case Pattern::SLEEP_TWO: return SCORE_SLEEP_TWO;
+        default: return 0;
+    }
+}
+
+int countPatternScore(const Board& board, int row, int col, Player player) {
+    if (!board.isEmpty(row, col)) return 0;
+    
+    int totalScore = 0;
+    int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
+    
+    int liveThrees = 0;
+    int rushFours = 0;
+    
+    for (auto& dir : directions) {
+        LineInfo info = analyzeLineInDirection(board, row, col, dir[0], dir[1], player);
+        Pattern p = getPatternFromLine(info);
+        totalScore += getPatternScore(p);
+        
+        if (p == Pattern::LIVE_THREE) liveThrees++;
+        if (p == Pattern::RUSH_FOUR) rushFours++;
+    }
+    
+    // Bonus for double threats
+    if (liveThrees >= 2) totalScore += SCORE_LIVE_FOUR;  // 双活三 ≈ 活四
+    if (rushFours >= 2) totalScore += SCORE_LIVE_FOUR;   // 双冲四 ≈ 活四
+    if (rushFours >= 1 && liveThrees >= 1) totalScore += SCORE_LIVE_FOUR;  // 冲四活三 ≈ 活四
+    
+    return totalScore;
+}
+
+int evaluatePosition(const Board& board, int row, int col, Player player) {
+    return countPatternScore(board, row, col, player);
+}
+
+std::vector<ScoredMove> getScoredMoves(const Board& board, Player side) {
+    Player opp = (side == Player::Black) ? Player::White : Player::Black;
+    auto candidates = getCandidateMoves(board, side);
+    
+    std::vector<ScoredMove> scored;
+    scored.reserve(candidates.size());
+    
+    for (const auto& mv : candidates) {
+        ScoredMove sm;
+        sm.move = mv;
+        sm.attackScore = countPatternScore(board, mv.row, mv.col, side);
+        sm.defenseScore = countPatternScore(board, mv.row, mv.col, opp);
+        scored.push_back(sm);
+    }
+    
+    // Sort by total score (descending)
+    std::sort(scored.begin(), scored.end(), [](const ScoredMove& a, const ScoredMove& b) {
+        return a.totalScore() > b.totalScore();
+    });
+    
+    return scored;
+}
+
+std::optional<Move> findDoubleThreat(const Board& board, Player side) {
+    auto candidates = getCandidateMoves(board, side);
+    
+    for (const auto& mv : candidates) {
+        int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
+        
+        int liveThrees = 0;
+        int rushFours = 0;
+        int liveFours = 0;
+        
+        for (auto& dir : directions) {
+            LineInfo info = analyzeLineInDirection(board, mv.row, mv.col, dir[0], dir[1], side);
+            Pattern p = getPatternFromLine(info);
+            
+            if (p == Pattern::LIVE_FOUR) liveFours++;
+            if (p == Pattern::RUSH_FOUR) rushFours++;
+            if (p == Pattern::LIVE_THREE) liveThrees++;
+        }
+        
+        // Check for double threat patterns
+        if (liveFours >= 1) return mv;  // 活四必胜
+        if (liveThrees >= 2) return mv;  // 双活三
+        if (rushFours >= 2) return mv;   // 双冲四
+        if (rushFours >= 1 && liveThrees >= 1) return mv;  // 冲四活三
+    }
+    
+    return std::nullopt;
+}
+
+std::optional<Move> getBestHeuristicMove(const Board& board, Player side) {
+    Player opp = (side == Player::Black) ? Player::White : Player::Black;
+    
+    // 1. Can we win directly (Five)?
+    for (const auto& mv : getCandidateMoves(board, side)) {
+        if (wouldWin(board, mv.row, mv.col, side)) {
+            return mv;
+        }
+    }
+    
+    // 2. Must block opponent's win?
+    for (const auto& mv : getCandidateMoves(board, side)) {
+        if (wouldWin(board, mv.row, mv.col, opp)) {
+            return mv;
+        }
+    }
+    
+    // 3. Can we create a double threat?
+    if (auto doubleThreat = findDoubleThreat(board, side)) {
+        return doubleThreat;
+    }
+    
+    // 4. Must block opponent's double threat?
+    if (auto oppDoubleThreat = findDoubleThreat(board, opp)) {
+        return Move{oppDoubleThreat->row, oppDoubleThreat->col, side};
+    }
+    
+    // 5. Get best scored move
+    auto scoredMoves = getScoredMoves(board, side);
+    if (!scoredMoves.empty()) {
+        // Add some randomness among top moves to avoid predictability
+        int topCount = std::min(3, (int)scoredMoves.size());
+        int bestScore = scoredMoves[0].totalScore();
+        
+        // Only consider moves within 80% of best score
+        int threshold = (int)(bestScore * 0.8);
+        topCount = 0;
+        for (const auto& sm : scoredMoves) {
+            if (sm.totalScore() >= threshold) topCount++;
+            else break;
+        }
+        
+        if (topCount > 1) {
+            std::uniform_int_distribution<> dis(0, topCount - 1);
+            return scoredMoves[dis(rng)].move;
+        }
+        
+        return scoredMoves[0].move;
+    }
+    
+    return std::nullopt;
+}
+
 }  // namespace Heuristics

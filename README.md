@@ -1,24 +1,14 @@
 # DeepFive
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/MacroXie04/DeepFive)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20STEAMplug-lightgrey.svg)](https://github.com/MacroXie04/DeepFive)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**A sophisticated Gomoku AI with Monte Carlo Tree Search and tactical VCF solvers**
+DeepFive is a modern C++ implementation of Gomoku (Five-in-a-Row) featuring an intelligent bot engine that combines strategic MCTS planning with tactical forced-win detection, all wrapped in Bobcat UI user interface.
 
-DeepFive is a high-performance, modern C++ implementation of Gomoku (Five-in-a-Row) featuring an intelligent AI engine that combines strategic MCTS planning with tactical forced-win detection, all wrapped in a sleek OpenGL-rendered user interface.
 
----
-
-## Highlights
-
-- **Hybrid AI Engine**: MCTS for strategic play + specialized VCF/VCF-Block solvers for tactical precision
-- **High Performance**: Written in modern C++17 with optimized search algorithms
-- **Beautiful UI**: Hardware-accelerated OpenGL rendering with FLTK
-- **Real-time Analysis**: Watch the AI think with live statistics and search progress
-- **Docker Support**: Containerized deployment with X11 forwarding via Xpra
-
----
+![Screenshot.png](Screenshot.png)
+> In Bot vs Bot mode, real-time win rate calculation will be paused to save computational overhead.
 
 ## Features
 

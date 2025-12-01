@@ -39,6 +39,14 @@ class MCTSSolver {
 
     std::pair<std::optional<Move>, int> getBestMove();
 
+    // Get all candidate moves with their evaluation scores (0.0 to 1.0)
+    struct CandidateEval {
+        Move move;
+        float score;  // win rate normalized to 0.0-1.0
+        int visits;
+    };
+    std::vector<CandidateEval> getCandidateEvaluations() const;
+
    private:
     std::unique_ptr<MCTSNode> root;
     Board rootBoard;

@@ -28,6 +28,8 @@ class SidePanel {
     bobcat::Dropdown& getDdMode() { return ddMode; }
     bobcat::Dropdown& getDdBotSide() { return ddBotSide; }
     bobcat::Dropdown& getDdBotStrength() { return ddBotStrength; }
+    bobcat::Checkbox& getChkSelfPlay() { return chkSelfPlay; }
+    bool isSelfPlayEnabled() const { return chkSelfPlay.value() == 1; }
 
     // Update Methods
     void updateTurnIndicator(Player currentPlayer, bool isHistoryEmpty, GameState state,
@@ -64,6 +66,7 @@ class SidePanel {
     bobcat::Dropdown ddMode;
     bobcat::Dropdown ddBotSide;
     bobcat::Dropdown ddBotStrength;
+    bobcat::Checkbox chkSelfPlay;
     bobcat::TextBox txtModeDesc;
 
     // Stats

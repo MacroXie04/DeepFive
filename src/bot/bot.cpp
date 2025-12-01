@@ -17,7 +17,7 @@
 #include "heuristics.h"
 #include "mcts.h"
 
-GomokuBot::GomokuBot() : currentMode(BotMode::Thinking) {}
+GomokuBot::GomokuBot() : currentMode(BotMode::Auto) {}
 
 GomokuBot::~GomokuBot() {
     stopAnalysis();
@@ -31,38 +31,102 @@ BotMode GomokuBot::getMode() const {
     return currentMode;
 }
 
+void GomokuBot::setSelfPlayMode(bool enabled) {
+    selfPlayMode = enabled;
+}
+
+bool GomokuBot::isSelfPlayMode() const {
+    return selfPlayMode;
+}
+
 void GomokuBot::setSearchCallback(std::function<void(double, int, double, double)> cb) {
     statusCallback = cb;
+}
+
+void GomokuBot::setCandidateCallback(CandidateCallback cb) {
+    candidateCallback = cb;
 }
 
 std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     if (board.isFull()) return std::nullopt;
 
-    // 1. Check immediate threats (Win now or block loss)
-    if (auto threatMove = Heuristics::checkImmediateThreats(board, side)) {
-        return threatMove;
+    Player opp = (side == Player::Black) ? Player::White : Player::Black;
+
+    // 0. First move: play center (Tengen) immediately
+    int center = board.size() / 2;
+    if (board.isEmpty(center, center)) {
+        bool isEmpty = true;
+        for (int r = 0; r < board.size() && isEmpty; ++r) {
+            for (int c = 0; c < board.size() && isEmpty; ++c) {
+                if (!board.isEmpty(r, c)) isEmpty = false;
+            }
+        }
+        if (isEmpty) {
+            return Move{center, center, side};
+        }
     }
 
-    // STEP 1: search forced wins (VCF)
-    // Using depth 25 for VCF as it is narrower
-    if (ForcedNode* forcedWin = BFS_FindWin(board, side, 25)) {
+    // 1. Can we win directly (Five)?
+    for (const auto& mv : Heuristics::getCandidateMoves(board, side)) {
+        Board temp = board;
+        temp.placeStone(mv.row, mv.col, side);
+        if (temp.checkWinner() == side) {
+            return mv;
+        }
+    }
+
+    // 2. Must block opponent's win?
+    for (const auto& mv : Heuristics::getCandidateMoves(board, side)) {
+        Board temp = board;
+        temp.placeStone(mv.row, mv.col, opp);
+        if (temp.checkWinner() == opp) {
+            return mv;
+        }
+    }
+
+    // 3. Can we create a double threat (活四, 双活三, 冲四活三)?
+    if (auto doubleThreat = Heuristics::findDoubleThreat(board, side)) {
+        return doubleThreat;
+    }
+
+    // 4. Must block opponent's double threat?
+    if (auto oppDoubleThreat = Heuristics::findDoubleThreat(board, opp)) {
+        return Move{oppDoubleThreat->row, oppDoubleThreat->col, side};
+    }
+
+    // VCF/VCT search depth depends on self-play mode
+    int vcfDepth = selfPlayMode ? 35 : 25;
+    int vcfBlockDepth = selfPlayMode ? 25 : 17;
+    int vctDepth = selfPlayMode ? 15 : 10;
+
+    // 5. Search forced wins (VCF - continuous fours)
+    if (ForcedNode* forcedWin = BFS_FindWin(board, side, vcfDepth)) {
         auto path = reconstructPath(forcedWin);
         if (!path.empty()) return path.front();
     }
 
-    // STEP 2: forced defense (VCF Block)
-    // Checks if opponent has a VCF we need to block
-    if (ForcedNode* forcedLose = BFS_FindLose(board, side, 17)) {
+    // 6. Block opponent's VCF
+    if (ForcedNode* forcedLose = BFS_FindLose(board, side, vcfBlockDepth)) {
         auto path = reconstructPath(forcedLose);
         if (!path.empty()) {
-            // path.front() is the opponent's winning move. We must block it.
             Move m = path.front();
             m.player = side;
             return m;
         }
     }
 
-    int durationMs = 2000;  // Default Thinking
+    // 7. Search VCT (continuous threes) - only in self-play mode for speed
+    if (selfPlayMode) {
+        if (ForcedNode* vctWin = VCT_Solve(board, side, vctDepth)) {
+            auto path = reconstructPath(vctWin);
+            if (!path.empty()) return path.front();
+        }
+    }
+
+    // 8. Use heuristic evaluation to pick best move without deep search
+    auto scoredMoves = Heuristics::getScoredMoves(board, side);
+    
+    int durationMs = 2000;  // Default
 
     switch (currentMode) {
         case BotMode::Instant:
@@ -71,14 +135,10 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
         case BotMode::Thinking:
             durationMs = 5000;
             break;
-        case BotMode::ExtendedThinking:
-            durationMs = 10000;
-            break;
         case BotMode::Pro:
             durationMs = 15000;
             break;
         case BotMode::Auto: {
-            // Dynamic logic
             int stoneCount = 0;
             int size = board.size();
             for (int r = 0; r < size; ++r)
@@ -86,14 +146,18 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
                     if (!board.isEmpty(r, c)) stoneCount++;
 
             if (stoneCount < 10) {
-                durationMs = 200;  // Early game fast
+                durationMs = 200;
             } else if (stoneCount < 30) {
-                durationMs = 2000;  // Mid game normal
+                durationMs = 2000;
             } else {
-                durationMs = 10000;  // Late game think harder
+                durationMs = 10000;
             }
             break;
         }
+    }
+
+    if (selfPlayMode) {
+        durationMs = (int)(durationMs * 1.5);
     }
 
     MCTSSolver solver(board, side);
@@ -103,12 +167,31 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     // Since chooseMove blocks main thread (usually), calling callback directly is fine.
     // However, if we want to process events, we should call Fl::check().
 
-    auto cb = [this](double wr, int sims, double t, double p) {
+    auto cb = [this, &solver, side](double wr, int sims, double t, double p) {
         if (statusCallback) statusCallback(wr, sims, t, p);
+        
+        // Send candidate evaluations for visualization (always, not just self-play)
+        if (candidateCallback && sims > 50) {
+            // Only update visualization after sufficient simulations
+            auto evals = solver.getCandidateEvaluations();
+            if (!evals.empty()) {
+                std::vector<std::tuple<int, int, Player, float>> candidates;
+                for (const auto& e : evals) {
+                    candidates.emplace_back(e.move.row, e.move.col, side, e.score);
+                }
+                candidateCallback(candidates);
+            }
+        }
+        
         Fl::check();
     };
 
     solver.run(durationMs, cb);
+
+    // Clear visualization after thinking is done
+    if (candidateCallback) {
+        candidateCallback({});
+    }
 
     auto result = solver.getBestMove();
     return result.first;

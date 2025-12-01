@@ -11,7 +11,7 @@
 
 #include "../core/board.h"
 
-enum class BotMode { Instant, Auto, Thinking, ExtendedThinking, Pro };
+enum class BotMode { Instant, Auto, Thinking, Pro };
 
 class GomokuBot {
    public:
@@ -21,8 +21,16 @@ class GomokuBot {
     void setMode(BotMode mode);
     BotMode getMode() const;
 
+    void setSelfPlayMode(bool enabled);
+    bool isSelfPlayMode() const;
+
     // winRate, simulations, elapsedSeconds, progress(0-1)
     void setSearchCallback(std::function<void(double, int, double, double)> cb);
+
+    // Candidate evaluation callback for visualization
+    // vector of (row, col, player, score)
+    using CandidateCallback = std::function<void(const std::vector<std::tuple<int, int, Player, float>>&)>;
+    void setCandidateCallback(CandidateCallback cb);
 
     std::optional<Move> chooseMove(const Board& board, Player side);
 
@@ -36,7 +44,9 @@ class GomokuBot {
 
    private:
     BotMode currentMode;
+    bool selfPlayMode = false;
     std::function<void(double, int, double, double)> statusCallback;
+    CandidateCallback candidateCallback;
 
     std::atomic<bool> analysisRunning{false};
     std::atomic<bool> stopAnalysisFlag{false};
