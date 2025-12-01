@@ -5,67 +5,74 @@
 #include <vector>
 
 #include "../core/board.h"
+#include "evaluation.h"
+#include "patterns.h"
 
 namespace Heuristics {
 
-// Pattern types with scores
-enum class Pattern {
-    FIVE = 0,       // 五连 - 已获胜
-    LIVE_FOUR,      // 活四 - 必胜
-    RUSH_FOUR,      // 冲四 - 对方必挡
-    LIVE_THREE,     // 活三 - 强威胁
-    SLEEP_THREE,    // 眠三 - 潜在威胁
-    LIVE_TWO,       // 活二 - 发展潜力
-    SLEEP_TWO,      // 眠二
-    NONE
-};
+// Re-export commonly used types for convenience
+using ScoredMove = Evaluation::ScoredMove;
+using BoardEvaluation = Evaluation::BoardEvaluation;
 
-// Pattern scores for evaluation
-constexpr int SCORE_FIVE = 100000;
-constexpr int SCORE_LIVE_FOUR = 50000;
-constexpr int SCORE_RUSH_FOUR = 5000;
-constexpr int SCORE_LIVE_THREE = 3000;
-constexpr int SCORE_SLEEP_THREE = 500;
-constexpr int SCORE_LIVE_TWO = 100;
-constexpr int SCORE_SLEEP_TWO = 10;
+// Re-export pattern scores
+using Patterns::SCORE_FIVE;
+using Patterns::SCORE_LIVE_FOUR;
+using Patterns::SCORE_RUSH_FOUR;
+using Patterns::SCORE_LIVE_THREE;
 
-// Move with evaluation score
-struct ScoredMove {
-    Move move;
-    int attackScore;   // Score for our attack potential
-    int defenseScore;  // Score for blocking opponent
-    int totalScore() const { return attackScore + defenseScore; }
-};
+// ========== Move Generation ==========
 
 // Returns plausible moves to consider for MCTS or other searches
 std::vector<Move> getCandidateMoves(const Board& board, Player side);
 
-// Returns candidate moves with evaluation scores, sorted by score (best first)
-std::vector<ScoredMove> getScoredMoves(const Board& board, Player side);
-
-// Evaluate a single position's pattern score for a player
-int evaluatePosition(const Board& board, int row, int col, Player player);
-
-// Count patterns at a position in all directions
-int countPatternScore(const Board& board, int row, int col, Player player);
-
-// Check for double threats (e.g., 双活三, 冲四活三)
-// Returns the move that creates double threat, or nullopt
-std::optional<Move> findDoubleThreat(const Board& board, Player side);
-
 // Returns a random move near existing stones (fast rollout policy)
 std::optional<Move> getFastRandomMove(const Board& board, Player side);
 
-// Check for immediate win (5) or forced block (4) - SLOW, don't use in rollout
+// ========== Threat Detection ==========
+
+// Check for immediate win (5) or forced block (4)
 std::optional<Move> checkImmediateThreats(const Board& board, Player side);
 
-// Fast threat check for rollout - no board copies, O(1) per position
-// Returns winning move or blocking move if found
+// Fast threat check for rollout - no board copies
 std::optional<Move> getFastThreatMove(const Board& board, Player side);
 
+// Check for double threats (双活三, 冲四活三, etc.)
+std::optional<Move> findDoubleThreat(const Board& board, Player side);
+
+// ========== Move Selection ==========
+
 // Smart move selection using all heuristics
-// Returns the best move considering patterns, threats, and double threats
 std::optional<Move> getBestHeuristicMove(const Board& board, Player side);
+
+// Get a move using evaluation-guided sampling (for improved rollout)
+std::optional<Move> getEvaluationGuidedMove(const Board& board, Player side);
+
+// ========== Convenience Wrappers ==========
+
+// Wrapper for Patterns::countPatternScore
+inline int countPatternScore(const Board& board, int row, int col, Player player) {
+    return Patterns::countPatternScore(board, row, col, player);
+}
+
+// Wrapper for Evaluation::getScoredMoves
+inline std::vector<ScoredMove> getScoredMoves(const Board& board, Player side) {
+    return Evaluation::getScoredMoves(board, side);
+}
+
+// Wrapper for Evaluation::evaluateBoard
+inline BoardEvaluation evaluateBoard(const Board& board, Player currentPlayer) {
+    return Evaluation::evaluateBoard(board, currentPlayer);
+}
+
+// Wrapper for Evaluation::getHeuristicBias
+inline double getHeuristicBias(const Board& board, const Move& move) {
+    return Evaluation::getHeuristicBias(board, move);
+}
+
+// Wrapper for Evaluation::getPositionValue
+inline int getPositionValue(int row, int col, int boardSize = 15) {
+    return Evaluation::getPositionValue(row, col, boardSize);
+}
 
 }  // namespace Heuristics
 

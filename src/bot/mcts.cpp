@@ -9,20 +9,36 @@
 // Thread-local random generator
 static thread_local std::mt19937 rng(std::random_device{}());
 
-MCTSNode::MCTSNode(Move m, MCTSNode* p, Player justMoved)
-    : move(m), parent(p), visits(0), wins(0.0), playerJustMoved(justMoved) {}
+// Rollout configuration
+constexpr int ROLLOUT_DEPTH_LIMIT = 100;       // Max moves in rollout
+constexpr double EVAL_GUIDED_PROB = 0.15;      // Low probability - evaluation is expensive
+constexpr double PROGRESSIVE_BIAS_SCALE = 0.5; // Scale factor for progressive bias
+
+MCTSNode::MCTSNode(Move m, MCTSNode* p, Player justMoved, double bias)
+    : move(m), parent(p), visits(0), wins(0.0), playerJustMoved(justMoved), heuristicBias(bias) {}
 
 bool MCTSNode::isFullyExpanded() const {
     return untriedMoves.empty();
 }
 
-MCTSNode* MCTSNode::bestChild(double explorationValue) {
+MCTSNode* MCTSNode::bestChild(double explorationValue, bool useProgressiveBias) {
     MCTSNode* best = nullptr;
     double bestValue = -std::numeric_limits<double>::max();
 
     for (const auto& child : children) {
-        double uctValue = (child->wins / (double)child->visits) +
-                          explorationValue * std::sqrt(std::log(visits) / (double)child->visits);
+        // Standard UCT formula
+        double exploitation = child->wins / (double)child->visits;
+        double exploration = explorationValue * std::sqrt(std::log(visits) / (double)child->visits);
+        
+        // Progressive bias: decreases as visits increase
+        // H / (visits + 1) where H is the heuristic bias
+        double progressiveBias = 0.0;
+        if (useProgressiveBias && child->heuristicBias > 0) {
+            progressiveBias = PROGRESSIVE_BIAS_SCALE * child->heuristicBias / (child->visits + 1);
+        }
+        
+        double uctValue = exploitation + exploration + progressiveBias;
+        
         if (uctValue > bestValue) {
             bestValue = uctValue;
             best = child.get();
@@ -33,7 +49,7 @@ MCTSNode* MCTSNode::bestChild(double explorationValue) {
 
 MCTSSolver::MCTSSolver(const Board& board, Player side) : rootBoard(board) {
     Player opponent = (side == Player::Black) ? Player::White : Player::Black;
-    root = std::make_unique<MCTSNode>(Move{-1, -1, Player::NoPlayer}, nullptr, opponent);
+    root = std::make_unique<MCTSNode>(Move{-1, -1, Player::NoPlayer}, nullptr, opponent, 0.0);
     root->untriedMoves = Heuristics::getCandidateMoves(board, side);
 }
 
@@ -41,13 +57,13 @@ void MCTSSolver::step() {
     MCTSNode* node = root.get();
     Board tempBoard = rootBoard;
 
-    // Selection
+    // Selection - use progressive bias
     while (node->isFullyExpanded() && !node->children.empty()) {
-        node = node->bestChild();
+        node = node->bestChild(1.41, true);  // UCT with progressive bias
         tempBoard.placeStone(node->move.row, node->move.col, node->move.player);
     }
 
-    // Expansion
+    // Expansion - use simple random selection for speed
     if (!node->isFullyExpanded() && !tempBoard.isFull()) {
         std::uniform_int_distribution<> dis(0, node->untriedMoves.size() - 1);
         int idx = dis(rng);
@@ -60,8 +76,11 @@ void MCTSSolver::step() {
         Player currentPlayer =
             (node->playerJustMoved == Player::Black) ? Player::White : Player::Black;
         move.player = currentPlayer;
+        
+        // Calculate heuristic bias only for the chosen node (lightweight version)
+        double heuristicBias = Heuristics::getHeuristicBias(tempBoard, move);
 
-        auto child = std::make_unique<MCTSNode>(move, node, currentPlayer);
+        auto child = std::make_unique<MCTSNode>(move, node, currentPlayer, heuristicBias);
         tempBoard.placeStone(move.row, move.col, currentPlayer);
 
         Player nextPlayer = (currentPlayer == Player::Black) ? Player::White : Player::Black;
@@ -71,30 +90,34 @@ void MCTSSolver::step() {
         node = node->children.back().get();
     }
 
-    // Simulation (Rollout) with fast heuristic guidance
+    // Simulation (Rollout) with improved heuristic guidance
     Player rolloutPlayer = (node->playerJustMoved == Player::Black) ? Player::White : Player::Black;
     Board rolloutBoard = tempBoard;
     Player winner = Player::NoPlayer;
 
-    int movesLimit = 225;
     int movesMade = 0;
 
     if (rolloutBoard.checkWinner() != Player::NoPlayer) {
         winner = rolloutBoard.checkWinner();
     } else {
-        while (movesMade < movesLimit) {
+        while (movesMade < ROLLOUT_DEPTH_LIMIT) {
             if (rolloutBoard.isFull()) {
                 winner = Player::NoPlayer;
                 break;
             }
 
-            // Try fast threat move first (win or block) - O(n) not O(n²)
+            // Try fast threat move first (win or block)
             std::optional<Move> selectedMove = 
                 Heuristics::getFastThreatMove(rolloutBoard, rolloutPlayer);
             
-            // Fall back to random move if no immediate threat
+            // Use evaluation-guided move with some probability, else random
             if (!selectedMove) {
-                selectedMove = Heuristics::getFastRandomMove(rolloutBoard, rolloutPlayer);
+                std::uniform_real_distribution<> probDist(0.0, 1.0);
+                if (probDist(rng) < EVAL_GUIDED_PROB) {
+                    selectedMove = Heuristics::getEvaluationGuidedMove(rolloutBoard, rolloutPlayer);
+                } else {
+                    selectedMove = Heuristics::getFastRandomMove(rolloutBoard, rolloutPlayer);
+                }
             }
             
             if (!selectedMove) break;
@@ -110,6 +133,9 @@ void MCTSSolver::step() {
             rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
             movesMade++;
         }
+        
+        // If rollout didn't finish with a winner, the draw value (0.5) will be used
+        // This happens when ROLLOUT_DEPTH_LIMIT is reached without a decisive result
     }
 
     // Backpropagation
@@ -122,6 +148,8 @@ void MCTSSolver::step() {
                 node->wins += 0.0;
             }
         } else {
+            // Draw or evaluation-based: use 0.5
+            // Could use evaluation score here for more nuance
             node->wins += 0.5;
         }
         node = node->parent;
@@ -133,6 +161,11 @@ void MCTSSolver::step() {
 void MCTSSolver::run(int durationMs, std::function<void(double, int, double, double)> statusCb) {
     auto startTime = std::chrono::steady_clock::now();
     auto lastUpdate = startTime;
+    
+    // Call callback immediately at start to show "thinking" status
+    if (statusCb) {
+        statusCb(50.0, 0, 0.0, 0.0);
+    }
 
     while (true) {
         auto now = std::chrono::steady_clock::now();
@@ -144,9 +177,10 @@ void MCTSSolver::run(int durationMs, std::function<void(double, int, double, dou
 
         auto updateDiff =
             std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate).count();
-        if (updateDiff >= 100 && statusCb) {
+        // Update every 50ms for more responsive UI
+        if (updateDiff >= 50 && statusCb) {
             double winRate = 0.0;
-            MCTSNode* best = root->bestChild(0);
+            MCTSNode* best = root->bestChild(0, false);  // Don't use progressive bias for display
             if (best && best->visits > 0) {
                 winRate = best->wins / best->visits;
             }

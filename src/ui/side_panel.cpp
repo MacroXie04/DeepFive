@@ -22,7 +22,7 @@ SidePanel::SidePanel(int x, int y, int w, int h)
       ddMode(0, 0, 0, 0, "Game Mode"),
       ddBotSide(0, 0, 0, 0, "Bot Side"),
       ddBotStrength(0, 0, 0, 0, "DeepFive Mode"),
-      chkSelfPlay(0, 0, 0, 0, "Self-Play (VCF/VCT)"),
+      chkSelfPlay(0, 0, 0, 0, "Tournament Mode"),
       txtModeDesc(0, 0, 0, 0, "Decides how long to think"),
       winRateBar(0, 0, 0, 0),
       progressBar(0, 0, 0, 0),
@@ -68,6 +68,15 @@ void SidePanel::setupUI() {
     inputInitialTime.resize(panelX, timerSetupY, panelWidth, 28);
     // Initial value should be set by caller or default
     inputInitialTime.align(FL_ALIGN_LEFT);
+    // Limit input to reasonable range (1-3600 seconds = 1 hour max)
+    inputInitialTime.onChange([this](bobcat::Widget* w) {
+        int val = inputInitialTime.value();
+        if (val > 3600) {
+            inputInitialTime.value(3600);
+        } else if (val < 0) {
+            inputInitialTime.value(0);
+        }
+    });
     timerSetupWidgets.push_back(&inputInitialTime);
     advanceTimerSetupY(28);
 

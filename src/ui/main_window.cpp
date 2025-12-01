@@ -3,9 +3,54 @@
 #include <FL/Fl.H>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
+
+// Convert a regular letter to Unicode bold letter (Mathematical Sans-Serif Bold)
+static std::string toBoldChar(char c) {
+    if (c >= 'A' && c <= 'Z') {
+        // Bold uppercase: U+1D5D4 + offset
+        char32_t bold = 0x1D5D4 + (c - 'A');
+        // Convert to UTF-8
+        std::string utf8;
+        utf8 += (char)(0xF0 | ((bold >> 18) & 0x07));
+        utf8 += (char)(0x80 | ((bold >> 12) & 0x3F));
+        utf8 += (char)(0x80 | ((bold >> 6) & 0x3F));
+        utf8 += (char)(0x80 | (bold & 0x3F));
+        return utf8;
+    } else if (c >= 'a' && c <= 'z') {
+        // Bold lowercase: U+1D5EE + offset
+        char32_t bold = 0x1D5EE + (c - 'a');
+        // Convert to UTF-8
+        std::string utf8;
+        utf8 += (char)(0xF0 | ((bold >> 18) & 0x07));
+        utf8 += (char)(0x80 | ((bold >> 12) & 0x3F));
+        utf8 += (char)(0x80 | ((bold >> 6) & 0x3F));
+        utf8 += (char)(0x80 | (bold & 0x3F));
+        return utf8;
+    }
+    return std::string(1, c);
+}
+
+// Helper function to create wave animation with bold characters moving through
+static std::string waveAnimateText(const std::string& text, double elapsedSec) {
+    std::string result;
+    int wavePos = ((int)(elapsedSec * 5)) % ((int)text.length() + 2);  // Wave position
+    
+    for (size_t i = 0; i < text.length(); ++i) {
+        int dist = std::abs((int)i - wavePos);
+        if (dist <= 1 && std::isalpha(text[i])) {
+            // Characters near wave position are bold
+            result += toBoldChar(text[i]);
+        } else {
+            result += text[i];
+        }
+    }
+    return result;
+}
 
 #include "../bot/benchmark.h"
 
@@ -68,18 +113,38 @@ void MainWindow::setupCallbacks() {
             analysisBot.stopAnalysis();
             updateAllUI();
             sidePanel.setProgress(0.0);
-            Fl::check();
-
+            
             bool isBotVsBot = (getSelectedGameMode() == GameMode::BotVsBot);
             Player thinkingPlayer = game.getCurrentPlayer();
             std::string playerName = (thinkingPlayer == Player::Black) ? "Black" : "White";
+            
+            // Build mode info string
+            std::string modeInfo = std::string("Mode: ") + bot.getModeName();
+            if (bot.isSelfPlayMode()) {
+                modeInfo += " + Tournament";
+            }
+            
+            // Show "Thinking..." immediately before bot starts
+            std::string thinkingPrefix = isBotVsBot 
+                ? (playerName + " thinking:\n") 
+                : "Reasoning...\n";
+            sidePanel.updateStats(thinkingPrefix + modeInfo + "\nAlgorithm: Searching...");
+            Fl::check();
 
             bot.setSearchCallback(
-                [this, isBotVsBot, playerName](double winRate, int sims, double elapsedSec, double progress) {
-                    std::string prefix = isBotVsBot 
-                        ? (playerName + " thinking:\n") 
-                        : "Reasoning...\n";
-                    std::string currentStats = prefix + formatStats(winRate, sims, elapsedSec);
+                [this, playerName, thinkingPrefix, modeInfo](double winRate, int sims, double elapsedSec, double progress) {
+                    // Wave animation on "Reasoning" or player name
+                    std::string animatedPrefix;
+                    if (thinkingPrefix.find("Reasoning") != std::string::npos) {
+                        animatedPrefix = waveAnimateText("Reasoning", elapsedSec) + "...\n";
+                    } else {
+                        animatedPrefix = playerName + " " + waveAnimateText("thinking", elapsedSec) + ":\n";
+                    }
+                    
+                    // During MCTS search, show algorithm with wave animation
+                    std::string currentStats = animatedPrefix + modeInfo;
+                    currentStats += "\nAlgorithm: " + waveAnimateText("MCTS", elapsedSec) + "\n";
+                    currentStats += formatStats(winRate, sims, elapsedSec);
                     sidePanel.updateStats(currentStats);
                     sidePanel.setProgress(progress);
                     
@@ -87,7 +152,9 @@ void MainWindow::setupCallbacks() {
                     double blackWinRate = (playerName == "Black") ? winRate : (100.0 - winRate);
                     sidePanel.setWinRate(blackWinRate);
                     
-                    lastStats = "Last Move:\n" + formatStats(winRate, sims, elapsedSec);
+                    lastWinRate = winRate;
+                    lastSims = sims;
+                    lastElapsed = elapsedSec;
                 });
 
             // Set up candidate visualization callback for self-play mode
@@ -124,7 +191,18 @@ void MainWindow::setupCallbacks() {
                 canvas.clearPreviewMoves();  // Clear visualization after move
                 canvas.redraw();
                 updateAllUI();
-                sidePanel.updateStats(lastStats);
+                
+                // Show detailed stats after move
+                std::string algorithmUsed = getAlgorithmStageName(bot.getLastAlgorithmStage());
+                std::string modeUsed = std::string(bot.getModeName());
+                if (bot.isSelfPlayMode()) {
+                    modeUsed += " + Tournament";
+                }
+                std::string detailedStats = "Last Move:\n";
+                detailedStats += "Mode: " + modeUsed + "\n";
+                detailedStats += "Algorithm: " + algorithmUsed + "\n";
+                detailedStats += formatStats(lastWinRate, lastSims, lastElapsed);
+                sidePanel.updateStats(detailedStats);
                 sidePanel.setProgress(1.0);
                 startBackgroundAnalysis();
 
@@ -405,24 +483,33 @@ void MainWindow::startBackgroundAnalysis() {
 
     Player current = game.getCurrentPlayer();
 
+    // Get last algorithm used by bot for display
+    std::string lastAlgo = getAlgorithmStageName(bot.getLastAlgorithmStage());
+    
     analysisBot.startAnalysis(
-        game.getBoard(), current, [this, current, isBotVsBot](double winRate, int sims, double elapsedSec) {
+        game.getBoard(), current, [this, current, isBotVsBot, lastAlgo](double winRate, int sims, double elapsedSec) {
             // Convert to Black's perspective for consistent UI display
             double blackWinRate = (current == Player::Black) ? winRate : (100.0 - winRate);
             sidePanel.setWinRate(blackWinRate);
 
-            // Update stats text
-            std::string prefix = isBotVsBot ? "Bot vs Bot:\n" : "Analysis:\n";
-            std::string currentStats = prefix + formatStats(winRate, sims, elapsedSec);
+            // Wave animation on prefix text
+            std::string prefix = isBotVsBot 
+                ? waveAnimateText("Bot vs Bot", elapsedSec)
+                : waveAnimateText("Analysis", elapsedSec);
+            prefix += "...\n";
+            
+            // Update stats text with last algorithm used and animation
+            std::string currentStats = prefix;
+            currentStats += "Last Algorithm: " + lastAlgo + "\n";
+            currentStats += formatStats(winRate, sims, elapsedSec);
             sidePanel.updateStats(currentStats);
         });
 }
 
 std::string MainWindow::formatStats(double winRate, int sims, double elapsedSec) {
-    (void)winRate;
+    (void)winRate;  // Win rate shown in progress bar
     std::stringstream ss;
     int sps = (elapsedSec > 0.001) ? (int)(sims / elapsedSec) : 0;
-    ss << "SPS: " << sps << "\n"
-       << "Sims: " << sims;
+    ss << "Sims: " << sims << " | SPS: " << sps;
     return ss.str();
 }

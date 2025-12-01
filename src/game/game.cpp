@@ -79,7 +79,7 @@ bool GomokuGame::playBotMove(GomokuBot& bot) {
 }
 
 bool GomokuGame::canUndo() const {
-    return !history.empty() && state != GameState::Finished;
+    return !history.empty();  // Allow undo even after game finished
 }
 
 void GomokuGame::undoLastMove() {

@@ -31,6 +31,16 @@ BotMode GomokuBot::getMode() const {
     return currentMode;
 }
 
+const char* GomokuBot::getModeName() const {
+    switch (currentMode) {
+        case BotMode::Instant: return "Instant";
+        case BotMode::Auto: return "Auto";
+        case BotMode::Thinking: return "Thinking";
+        case BotMode::Pro: return "Pro";
+        default: return "Unknown";
+    }
+}
+
 void GomokuBot::setSelfPlayMode(bool enabled) {
     selfPlayMode = enabled;
 }
@@ -62,6 +72,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
             }
         }
         if (isEmpty) {
+            lastAlgorithmStage = AlgorithmStage::Tengen;
             return Move{center, center, side};
         }
     }
@@ -71,6 +82,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
         Board temp = board;
         temp.placeStone(mv.row, mv.col, side);
         if (temp.checkWinner() == side) {
+            lastAlgorithmStage = AlgorithmStage::DirectWin;
             return mv;
         }
     }
@@ -80,21 +92,24 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
         Board temp = board;
         temp.placeStone(mv.row, mv.col, opp);
         if (temp.checkWinner() == opp) {
+            lastAlgorithmStage = AlgorithmStage::BlockWin;
             return mv;
         }
     }
 
     // 3. Can we create a double threat (活四, 双活三, 冲四活三)?
     if (auto doubleThreat = Heuristics::findDoubleThreat(board, side)) {
+        lastAlgorithmStage = AlgorithmStage::DoubleThreat;
         return doubleThreat;
     }
 
     // 4. Must block opponent's double threat?
     if (auto oppDoubleThreat = Heuristics::findDoubleThreat(board, opp)) {
+        lastAlgorithmStage = AlgorithmStage::BlockThreat;
         return Move{oppDoubleThreat->row, oppDoubleThreat->col, side};
     }
 
-    // VCF/VCT search depth depends on self-play mode
+    // VCF/VCT search depth depends on Tournament mode
     int vcfDepth = selfPlayMode ? 35 : 25;
     int vcfBlockDepth = selfPlayMode ? 25 : 17;
     int vctDepth = selfPlayMode ? 15 : 10;
@@ -102,28 +117,36 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     // 5. Search forced wins (VCF - continuous fours)
     if (ForcedNode* forcedWin = BFS_FindWin(board, side, vcfDepth)) {
         auto path = reconstructPath(forcedWin);
-        if (!path.empty()) return path.front();
+        if (!path.empty()) {
+            lastAlgorithmStage = AlgorithmStage::VCF;
+            return path.front();
+        }
     }
 
     // 6. Block opponent's VCF
     if (ForcedNode* forcedLose = BFS_FindLose(board, side, vcfBlockDepth)) {
         auto path = reconstructPath(forcedLose);
         if (!path.empty()) {
+            lastAlgorithmStage = AlgorithmStage::BlockVCF;
             Move m = path.front();
             m.player = side;
             return m;
         }
     }
 
-    // 7. Search VCT (continuous threes) - only in self-play mode for speed
+    // 7. Search VCT (continuous threes) - only in Tournament mode for speed
     if (selfPlayMode) {
         if (ForcedNode* vctWin = VCT_Solve(board, side, vctDepth)) {
             auto path = reconstructPath(vctWin);
-            if (!path.empty()) return path.front();
+            if (!path.empty()) {
+                lastAlgorithmStage = AlgorithmStage::VCT;
+                return path.front();
+            }
         }
     }
 
-    // 8. Use heuristic evaluation to pick best move without deep search
+    // 8. Use MCTS for position evaluation
+    lastAlgorithmStage = AlgorithmStage::MCTS;
     auto scoredMoves = Heuristics::getScoredMoves(board, side);
     
     int durationMs = 2000;  // Default
