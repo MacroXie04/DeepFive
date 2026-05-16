@@ -1,5 +1,6 @@
 #include "patterns.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace Patterns {
@@ -43,157 +44,178 @@ static bool matchesAny(const std::string& pattern, const std::vector<std::string
     return false;
 }
 
-int analyzePatternString(const std::string& pattern) {
-    int score = 0;
+static int patternRank(PatternType type) {
+    switch (type) {
+        case PatternType::FIVE:
+            return 10;
+        case PatternType::LIVE_FOUR:
+            return 9;
+        case PatternType::JUMP_FOUR:
+            return 8;
+        case PatternType::RUSH_FOUR:
+            return 7;
+        case PatternType::LIVE_THREE:
+            return 6;
+        case PatternType::JUMP_LIVE_THREE:
+            return 5;
+        case PatternType::SLEEP_THREE:
+            return 4;
+        case PatternType::LIVE_TWO:
+            return 3;
+        case PatternType::JUMP_LIVE_TWO:
+            return 2;
+        case PatternType::SLEEP_TWO:
+            return 1;
+        case PatternType::NONE:
+            return 0;
+    }
+    return 0;
+}
 
-    // Five patterns (already won)
-    static const std::vector<std::string> fivePatterns = {"XXXXX"};
+static void setHighest(PatternType& highest, PatternType candidate) {
+    if (patternRank(candidate) > patternRank(highest)) {
+        highest = candidate;
+    }
+}
 
-    // Live four patterns (must win) - _XXXX_
+static bool hasFourWindow(const std::string& pattern) {
+    if (pattern.size() < 5) return false;
+    for (size_t i = 0; i + 5 <= pattern.size(); ++i) {
+        int xCount = 0;
+        int dotCount = 0;
+        bool blocked = false;
+        for (size_t j = i; j < i + 5; ++j) {
+            if (pattern[j] == 'X')
+                xCount++;
+            else if (pattern[j] == '.')
+                dotCount++;
+            else
+                blocked = true;
+        }
+        if (!blocked && xCount == 4 && dotCount == 1) return true;
+    }
+    return false;
+}
+
+static ThreatInfo analyzePatternLine(const std::string& pattern) {
+    ThreatInfo info;
+
     static const std::vector<std::string> liveFourPatterns = {".XXXX."};
-
-    // Rush four patterns (rush four) - opponent blocked one end
-    static const std::vector<std::string> rushFourPatterns = {"OXXXX.", ".XXXXO", "#XXXX.",
-                                                              ".XXXX#"};
-
-    // Jump four patterns (jump four) - X_XXX, XX_XX, XXX_X
-    static const std::vector<std::string> jumpFourPatterns = {"X.XXX", "XX.XX", "XXX.X"};
-
-    // Live three patterns (live three) - _XXX_ with space to grow
+    static const std::vector<std::string> jumpFourPatterns = {".XXX.X.", ".XX.XX.", ".X.XXX."};
+    static const std::vector<std::string> rushFourPatterns = {
+        "OXXXX.", ".XXXXO", "#XXXX.", ".XXXX#", "OXXX.X", "XXX.XO", "#XXX.X", "XXX.X#",
+        "OXX.XX", "XX.XXO", "#XX.XX", "XX.XX#", "OX.XXX", "X.XXXO", "#X.XXX", "X.XXX#"};
     static const std::vector<std::string> liveThreePatterns = {".XXX..", "..XXX.", ".XXX."};
-
-    // Jump live three patterns (jump live three) - _X_XX_, _XX_X_
-    static const std::vector<std::string> jumpLiveThreePatterns = {".X.XX.", ".XX.X.", ".X.XX",
-                                                                   "XX.X.", "X.XX."};
-
-    // Sleep three patterns (sleep three)
+    static const std::vector<std::string> jumpLiveThreePatterns = {".X.XX.", ".XX.X.", ".X.X.",
+                                                                   ".X..XX.", ".XX..X."};
     static const std::vector<std::string> sleepThreePatterns = {
         "OXXX..", "..XXXO", "#XXX..", "..XXX#", "OX.XX.", ".XX.XO",
         "OXX.X.", ".X.XXO", "OXXX.",  ".XXXO",  "#XXX.",  ".XXX#"};
-
-    // Live two patterns (live two)
     static const std::vector<std::string> liveTwoPatterns = {".XX..", "..XX.", ".XX."};
-
-    // Jump live two patterns (jump live two)
     static const std::vector<std::string> jumpLiveTwoPatterns = {".X.X.", ".X..X.", "..X.X."};
 
-    // Check patterns in order of importance
-    if (matchesAny(pattern, fivePatterns)) {
-        score += SCORE_FIVE;
-    }
-    if (matchesAny(pattern, liveFourPatterns)) {
-        score += SCORE_LIVE_FOUR;
-    }
-    if (matchesAny(pattern, rushFourPatterns)) {
-        score += SCORE_RUSH_FOUR;
-    }
-    if (matchesAny(pattern, jumpFourPatterns)) {
-        score += SCORE_JUMP_FOUR;
-    }
-    if (matchesAny(pattern, liveThreePatterns)) {
-        score += SCORE_LIVE_THREE;
-    }
-    if (matchesAny(pattern, jumpLiveThreePatterns)) {
-        score += SCORE_JUMP_LIVE_THREE;
-    }
-    if (matchesAny(pattern, sleepThreePatterns)) {
-        score += SCORE_SLEEP_THREE;
-    }
-    if (matchesAny(pattern, liveTwoPatterns)) {
-        score += SCORE_LIVE_TWO;
-    }
-    if (matchesAny(pattern, jumpLiveTwoPatterns)) {
-        score += SCORE_JUMP_LIVE_TWO;
+    if (pattern.find("XXXXX") != std::string::npos) {
+        info.createsFive = true;
+        info.score += SCORE_FIVE;
+        setHighest(info.highestPattern, PatternType::FIVE);
+        return info;
     }
 
-    return score;
+    if (matchesAny(pattern, liveFourPatterns)) {
+        info.counts.liveFours++;
+        info.score += SCORE_LIVE_FOUR;
+        setHighest(info.highestPattern, PatternType::LIVE_FOUR);
+    } else if (matchesAny(pattern, jumpFourPatterns)) {
+        info.counts.jumpFours++;
+        info.score += SCORE_JUMP_FOUR;
+        setHighest(info.highestPattern, PatternType::JUMP_FOUR);
+    } else if (matchesAny(pattern, rushFourPatterns) || hasFourWindow(pattern)) {
+        info.counts.rushFours++;
+        info.score += SCORE_RUSH_FOUR;
+        setHighest(info.highestPattern, PatternType::RUSH_FOUR);
+    } else if (matchesAny(pattern, liveThreePatterns)) {
+        info.counts.liveThrees++;
+        info.score += SCORE_LIVE_THREE;
+        setHighest(info.highestPattern, PatternType::LIVE_THREE);
+    } else if (matchesAny(pattern, jumpLiveThreePatterns)) {
+        info.counts.jumpLiveThrees++;
+        info.score += SCORE_JUMP_LIVE_THREE;
+        setHighest(info.highestPattern, PatternType::JUMP_LIVE_THREE);
+    } else if (matchesAny(pattern, sleepThreePatterns)) {
+        info.counts.sleepThrees++;
+        info.score += SCORE_SLEEP_THREE;
+        setHighest(info.highestPattern, PatternType::SLEEP_THREE);
+    } else if (matchesAny(pattern, liveTwoPatterns)) {
+        info.counts.liveTwos++;
+        info.score += SCORE_LIVE_TWO;
+        setHighest(info.highestPattern, PatternType::LIVE_TWO);
+    } else if (matchesAny(pattern, jumpLiveTwoPatterns)) {
+        info.counts.jumpLiveTwos++;
+        info.score += SCORE_JUMP_LIVE_TWO;
+        setHighest(info.highestPattern, PatternType::JUMP_LIVE_TWO);
+    }
+
+    return info;
+}
+
+int analyzePatternString(const std::string& pattern) {
+    return analyzePatternLine(pattern).score;
 }
 
 // ============== Pattern Score Counting ==============
 
 int countPatternScore(const Board& board, int row, int col, Player player) {
-    if (!board.isEmpty(row, col)) return 0;
-
-    int totalScore = 0;
-    int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
-
-    // Create a temporary board with the hypothetical stone placed
-    Board tempBoard = board;
-    tempBoard.placeStone(row, col, player);
-
-    ThreatCount threats;
-
-    // Pattern templates for threat detection
-    static const std::vector<std::string> liveFourPatterns = {".XXXX."};
-    static const std::vector<std::string> rushFourPatterns = {"OXXXX.", ".XXXXO", "#XXXX.",
-                                                              ".XXXX#"};
-    static const std::vector<std::string> jumpFourPatterns = {"X.XXX", "XX.XX", "XXX.X"};
-    static const std::vector<std::string> liveThreePatterns = {".XXX..", "..XXX."};
-    static const std::vector<std::string> jumpLiveThreePatterns = {".X.XX.", ".XX.X."};
-
-    for (auto& dir : directions) {
-        std::string pattern = extractLinePattern(tempBoard, row, col, dir[0], dir[1], player, 9);
-        totalScore += analyzePatternString(pattern);
-
-        // Track threats for combo detection
-        if (matchesAny(pattern, liveFourPatterns))
-            threats.liveFours++;
-        else if (matchesAny(pattern, rushFourPatterns))
-            threats.rushFours++;
-        else if (matchesAny(pattern, jumpFourPatterns))
-            threats.jumpFours++;
-        else if (matchesAny(pattern, liveThreePatterns))
-            threats.liveThrees++;
-        else if (matchesAny(pattern, jumpLiveThreePatterns))
-            threats.jumpLiveThrees++;
-    }
-
-    // Bonus for double threats (winning combinations)
-    if (threats.liveFours >= 1) {
-        // Live four is already a winning position
-    } else if (threats.totalFours() >= 2) {
-        totalScore += SCORE_DOUBLE_RUSH_FOUR;
-    } else if (threats.totalFours() >= 1 && threats.totalThrees() >= 1) {
-        totalScore += SCORE_RUSH_FOUR_LIVE_THREE;
-    } else if (threats.totalThrees() >= 2) {
-        totalScore += SCORE_DOUBLE_LIVE_THREE;
-    }
-
-    return totalScore;
+    return analyzeMoveThreat(board, row, col, player).score;
 }
 
 ThreatCount countThreats(const Board& board, int row, int col, Player player) {
-    ThreatCount threats;
-    if (!board.isEmpty(row, col)) return threats;
+    return analyzeMoveThreat(board, row, col, player).counts;
+}
+
+ThreatInfo analyzeMoveThreat(const Board& board, int row, int col, Player player) {
+    ThreatInfo info;
+    if (!board.isEmpty(row, col) || player == Player::NoPlayer) return info;
 
     int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
 
     Board tempBoard = board;
     tempBoard.placeStone(row, col, player);
 
-    static const std::vector<std::string> liveFourPatterns = {".XXXX."};
-    static const std::vector<std::string> rushFourPatterns = {"OXXXX.", ".XXXXO", "#XXXX.",
-                                                              ".XXXX#"};
-    static const std::vector<std::string> jumpFourPatterns = {"X.XXX", "XX.XX", "XXX.X"};
-    static const std::vector<std::string> liveThreePatterns = {".XXX..", "..XXX."};
-    static const std::vector<std::string> jumpLiveThreePatterns = {".X.XX.", ".XX.X."};
-
     for (auto& dir : directions) {
         std::string pattern = extractLinePattern(tempBoard, row, col, dir[0], dir[1], player, 9);
-
-        if (matchesAny(pattern, liveFourPatterns))
-            threats.liveFours++;
-        else if (matchesAny(pattern, rushFourPatterns))
-            threats.rushFours++;
-        else if (matchesAny(pattern, jumpFourPatterns))
-            threats.jumpFours++;
-        else if (matchesAny(pattern, liveThreePatterns))
-            threats.liveThrees++;
-        else if (matchesAny(pattern, jumpLiveThreePatterns))
-            threats.jumpLiveThrees++;
+        ThreatInfo line = analyzePatternLine(pattern);
+        info.createsFive = info.createsFive || line.createsFive;
+        info.counts.liveFours += line.counts.liveFours;
+        info.counts.rushFours += line.counts.rushFours;
+        info.counts.jumpFours += line.counts.jumpFours;
+        info.counts.liveThrees += line.counts.liveThrees;
+        info.counts.jumpLiveThrees += line.counts.jumpLiveThrees;
+        info.counts.sleepThrees += line.counts.sleepThrees;
+        info.counts.liveTwos += line.counts.liveTwos;
+        info.counts.jumpLiveTwos += line.counts.jumpLiveTwos;
+        info.score += line.score;
+        setHighest(info.highestPattern, line.highestPattern);
     }
 
-    return threats;
+    info.createsDoubleFour = info.counts.totalFours() >= 2;
+    info.createsFourThree = info.counts.totalFours() >= 1 && info.counts.totalThrees() >= 1;
+    info.createsDoubleThree = info.counts.totalThrees() >= 2;
+
+    if (info.createsDoubleFour) info.score += SCORE_DOUBLE_RUSH_FOUR;
+    if (info.createsFourThree) info.score += SCORE_RUSH_FOUR_LIVE_THREE;
+    if (info.createsDoubleThree) info.score += SCORE_DOUBLE_LIVE_THREE;
+
+    info.forcedWin = isForcingMove(info);
+    return info;
+}
+
+bool isForcingMove(const ThreatInfo& threat) {
+    return threat.createsFive || threat.counts.totalFours() > 0 || threat.createsFourThree ||
+           threat.createsDoubleThree;
+}
+
+bool isForcingMove(const Board& board, int row, int col, Player player) {
+    return isForcingMove(analyzeMoveThreat(board, row, col, player));
 }
 
 // ============== Fast Heuristic Score ==============
@@ -213,7 +235,8 @@ static int fastCountLine(const Board& board, int r, int c, int dr, int dc, Playe
 int fastHeuristicScore(const Board& board, int r, int c, Player player) {
     if (!board.isEmpty(r, c)) return 0;
 
-    int score = 0;
+    ThreatInfo threat = analyzeMoveThreat(board, r, c, player);
+    int score = threat.score;
     int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
 
     for (auto& dir : directions) {

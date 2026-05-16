@@ -1,11 +1,8 @@
 #include "ForcedDFS.h"
 
-#include <FL/Fl.H>
-
 #include <deque>
 #include <memory>
 
-#include "../bot/bot.h"
 #include "../bot/heuristics.h"
 
 // Thread-local storage for DFS nodes
@@ -19,39 +16,8 @@ thread_local int vcfNodesVisited = 0;
 
 // Check if placing a stone creates a "Four" (4 in a row with at least one open end)
 static bool createsFour(const Board& board, int row, int col, Player player) {
-    int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
-
-    for (auto& dir : directions) {
-        int dr = dir[0];
-        int dc = dir[1];
-        int count = 1;
-
-        // Count forward
-        int i = 1;
-        while (board.isInside(row + i * dr, col + i * dc) &&
-               board.at(row + i * dr, col + i * dc) == player) {
-            count++;
-            i++;
-        }
-        bool openFront =
-            board.isInside(row + i * dr, col + i * dc) && board.isEmpty(row + i * dr, col + i * dc);
-
-        // Count backward
-        int j = 1;
-        while (board.isInside(row - j * dr, col - j * dc) &&
-               board.at(row - j * dr, col - j * dc) == player) {
-            count++;
-            j++;
-        }
-        bool openBack =
-            board.isInside(row - j * dr, col - j * dc) && board.isEmpty(row - j * dr, col - j * dc);
-
-        // A "Four" is exactly 4 stones with at least one open end
-        if (count == 4 && (openFront || openBack)) {
-            return true;
-        }
-    }
-    return false;
+    auto threat = Patterns::analyzeMoveThreat(board, row, col, player);
+    return threat.createsFive || threat.counts.totalFours() > 0;
 }
 
 // Get VCF moves: for attacker, moves that create a Four; for defender, moves that block attacker's
@@ -94,9 +60,10 @@ static std::vector<Move> getVCFMoves(const Board& board, Player currentPlayer, P
     return moves;
 }
 
-ForcedNode* DFS_Recursive(ForcedNode* node, Player targetSide, int maxDepth) {
+ForcedNode* DFS_Recursive(ForcedNode* node, Player targetSide, int maxDepth,
+                          const std::function<void()>& eventPump) {
     if ((++dfsNodesVisited & 0xFF) == 0) {
-        Fl::check();
+        if (eventPump) eventPump();
     }
     if (dfsNodesVisited > 200000) return nullptr;
 
@@ -126,14 +93,15 @@ ForcedNode* DFS_Recursive(ForcedNode* node, Player targetSide, int maxDepth) {
             std::make_unique<ForcedNode>(newBoard, nextPlayer, mv, node, node->depth + 1));
         ForcedNode* child = dfsNodePool.back().get();
 
-        ForcedNode* result = DFS_Recursive(child, targetSide, maxDepth);
+        ForcedNode* result = DFS_Recursive(child, targetSide, maxDepth, eventPump);
         if (result != nullptr) return result;
     }
 
     return nullptr;
 }
 
-ForcedNode* DFS_FindWin(const Board& board, Player side, int maxDepth) {
+ForcedNode* DFS_FindWin(const Board& board, Player side, int maxDepth,
+                        const std::function<void()>& eventPump) {
     dfsNodePool.clear();
     dfsNodesVisited = 0;
 
@@ -142,13 +110,14 @@ ForcedNode* DFS_FindWin(const Board& board, Player side, int maxDepth) {
         std::make_unique<ForcedNode>(board, side, Move{-1, -1, Player::NoPlayer}, nullptr, 0));
     ForcedNode* root = dfsNodePool.back().get();
 
-    return DFS_Recursive(root, side, maxDepth);
+    return DFS_Recursive(root, side, maxDepth, eventPump);
 }
 
 // VCF recursive search
-static ForcedNode* VCF_Recursive(ForcedNode* node, Player attacker, int maxDepth) {
+static ForcedNode* VCF_Recursive(ForcedNode* node, Player attacker, int maxDepth,
+                                 const std::function<void()>& eventPump) {
     if ((++vcfNodesVisited & 0xFF) == 0) {
-        Fl::check();
+        if (eventPump) eventPump();
     }
     if (vcfNodesVisited > 100000) return nullptr;  // Node limit
     if (node->depth >= maxDepth) return nullptr;
@@ -182,14 +151,15 @@ static ForcedNode* VCF_Recursive(ForcedNode* node, Player attacker, int maxDepth
             std::make_unique<ForcedNode>(newBoard, nextPlayer, mv, node, node->depth + 1));
         ForcedNode* child = vcfNodePool.back().get();
 
-        ForcedNode* result = VCF_Recursive(child, attacker, maxDepth);
+        ForcedNode* result = VCF_Recursive(child, attacker, maxDepth, eventPump);
         if (result != nullptr) return result;
     }
 
     return nullptr;
 }
 
-ForcedNode* VCF_Solve(const Board& board, Player side, int maxDepth) {
+ForcedNode* VCF_Solve(const Board& board, Player side, int maxDepth,
+                      const std::function<void()>& eventPump) {
     vcfNodePool.clear();
     vcfNodesVisited = 0;
 
@@ -198,7 +168,7 @@ ForcedNode* VCF_Solve(const Board& board, Player side, int maxDepth) {
         std::make_unique<ForcedNode>(board, side, Move{-1, -1, Player::NoPlayer}, nullptr, 0));
     ForcedNode* root = vcfNodePool.back().get();
 
-    return VCF_Recursive(root, side, maxDepth);
+    return VCF_Recursive(root, side, maxDepth, eventPump);
 }
 
 // ============== VCT (Victory by Continuous Threes) ==============
@@ -208,38 +178,9 @@ thread_local int vctNodesVisited = 0;
 
 // Check if placing creates a live three (活三: 3 stones with 2 open ends)
 static bool createsLiveThree(const Board& board, int row, int col, Player player) {
-    int directions[4][2] = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
-
-    for (auto& dir : directions) {
-        int dr = dir[0], dc = dir[1];
-        int count = 1;
-
-        // Count forward
-        int i = 1;
-        while (board.isInside(row + i * dr, col + i * dc) &&
-               board.at(row + i * dr, col + i * dc) == player) {
-            count++;
-            i++;
-        }
-        bool openFront =
-            board.isInside(row + i * dr, col + i * dc) && board.isEmpty(row + i * dr, col + i * dc);
-
-        // Count backward
-        int j = 1;
-        while (board.isInside(row - j * dr, col - j * dc) &&
-               board.at(row - j * dr, col - j * dc) == player) {
-            count++;
-            j++;
-        }
-        bool openBack =
-            board.isInside(row - j * dr, col - j * dc) && board.isEmpty(row - j * dr, col - j * dc);
-
-        // Live three: exactly 3 stones with both ends open
-        if (count == 3 && openFront && openBack) {
-            return true;
-        }
-    }
-    return false;
+    auto threat = Patterns::analyzeMoveThreat(board, row, col, player);
+    return threat.counts.liveThrees > 0 || threat.counts.jumpLiveThrees > 0 ||
+           threat.createsDoubleThree;
 }
 
 // Get VCT moves: attacks create live three or rush four; defense blocks these
@@ -297,9 +238,10 @@ static std::vector<Move> getVCTMoves(const Board& board, Player currentPlayer, P
     return moves;
 }
 
-static ForcedNode* VCT_Recursive(ForcedNode* node, Player attacker, int maxDepth) {
+static ForcedNode* VCT_Recursive(ForcedNode* node, Player attacker, int maxDepth,
+                                 const std::function<void()>& eventPump) {
     if ((++vctNodesVisited & 0xFF) == 0) {
-        Fl::check();
+        if (eventPump) eventPump();
     }
     if (vctNodesVisited > 50000) return nullptr;  // Lower limit for VCT
     if (node->depth >= maxDepth) return nullptr;
@@ -330,14 +272,15 @@ static ForcedNode* VCT_Recursive(ForcedNode* node, Player attacker, int maxDepth
             std::make_unique<ForcedNode>(newBoard, nextPlayer, mv, node, node->depth + 1));
         ForcedNode* child = vctNodePool.back().get();
 
-        ForcedNode* result = VCT_Recursive(child, attacker, maxDepth);
+        ForcedNode* result = VCT_Recursive(child, attacker, maxDepth, eventPump);
         if (result != nullptr) return result;
     }
 
     return nullptr;
 }
 
-ForcedNode* VCT_Solve(const Board& board, Player side, int maxDepth) {
+ForcedNode* VCT_Solve(const Board& board, Player side, int maxDepth,
+                      const std::function<void()>& eventPump) {
     vctNodePool.clear();
     vctNodesVisited = 0;
 
@@ -345,5 +288,5 @@ ForcedNode* VCT_Solve(const Board& board, Player side, int maxDepth) {
         std::make_unique<ForcedNode>(board, side, Move{-1, -1, Player::NoPlayer}, nullptr, 0));
     ForcedNode* root = vctNodePool.back().get();
 
-    return VCT_Recursive(root, side, maxDepth);
+    return VCT_Recursive(root, side, maxDepth, eventPump);
 }

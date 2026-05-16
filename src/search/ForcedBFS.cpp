@@ -1,7 +1,5 @@
 #include "ForcedBFS.h"
 
-#include <FL/Fl.H>
-
 #include <algorithm>
 #include <deque>
 #include <memory>
@@ -15,44 +13,8 @@ static thread_local int nodesVisited = 0;
 
 // Helpers
 bool isFour(const Board& board, int r, int c, Player p) {
-    // Check 4 directions
-    int dr[] = {0, 1, 1, 1};
-    int dc[] = {1, 0, 1, -1};
-
-    for (int i = 0; i < 4; ++i) {
-        int count = 1;
-        // Forward
-        int k = 1;
-        while (board.isInside(r + k * dr[i], c + k * dc[i]) &&
-               board.at(r + k * dr[i], c + k * dc[i]) == p) {
-            count++;
-            k++;
-        }
-        bool open1 = board.isInside(r + k * dr[i], c + k * dc[i]) &&
-                     board.isEmpty(r + k * dr[i], c + k * dc[i]);
-
-        // Backward
-        int m = 1;
-        while (board.isInside(r - m * dr[i], c - m * dc[i]) &&
-               board.at(r - m * dr[i], c - m * dc[i]) == p) {
-            count++;
-            m++;
-        }
-        bool open2 = board.isInside(r - m * dr[i], c - m * dc[i]) &&
-                     board.isEmpty(r - m * dr[i], c - m * dc[i]);
-
-        // Live 4 (open both ends) or Broken 4 (open one end)
-        // "Four" in VCF usually means a threat that wins next turn.
-        // 4 stones in a row.
-        if (count == 4) {
-            if (open1 || open2) return true;
-        }
-        if (count == 5) return true;  // 5 is also good
-
-        // Also check for "Gap 4"? X_XXX. Harder to detect with simple count.
-        // We will trust simple Connect-4 logic for now.
-    }
-    return false;
+    auto threat = Patterns::analyzeMoveThreat(board, r, c, p);
+    return threat.createsFive || threat.counts.totalFours() > 0;
 }
 
 // Returns moves that create a 4 or 5.
@@ -101,8 +63,9 @@ std::vector<Move> getBlockMoves(const Board& board, Player defender) {
     return blocks;
 }
 
-ForcedNode* dfsVCF(ForcedNode* node, Player targetSide, int depth, int maxDepth) {
-    if ((++nodesVisited & 0xFF) == 0) Fl::check();
+ForcedNode* dfsVCF(ForcedNode* node, Player targetSide, int depth, int maxDepth,
+                   const std::function<void()>& eventPump) {
+    if ((++nodesVisited & 0xFF) == 0 && eventPump) eventPump();
     if (nodesVisited > 2000000) return nullptr;
     if (depth > maxDepth) return nullptr;
 
@@ -135,7 +98,7 @@ ForcedNode* dfsVCF(ForcedNode* node, Player targetSide, int depth, int maxDepth)
             ForcedNode* child = vcfNodePool.back().get();
 
             // Recurse
-            ForcedNode* res = dfsVCF(child, targetSide, depth + 1, maxDepth);
+            ForcedNode* res = dfsVCF(child, targetSide, depth + 1, maxDepth, eventPump);
             if (res) return res;  // OR node: one success is enough
         }
         return nullptr;
@@ -171,7 +134,7 @@ ForcedNode* dfsVCF(ForcedNode* node, Player targetSide, int depth, int maxDepth)
                 std::make_unique<ForcedNode>(nextBoard, nextP, m, node, depth + 1));
             ForcedNode* child = vcfNodePool.back().get();
 
-            ForcedNode* res = dfsVCF(child, targetSide, depth + 1, maxDepth);
+            ForcedNode* res = dfsVCF(child, targetSide, depth + 1, maxDepth, eventPump);
             if (!res) return nullptr;  // One defense worked, so Attacker fails
             lastRes = res;
         }
@@ -179,7 +142,8 @@ ForcedNode* dfsVCF(ForcedNode* node, Player targetSide, int depth, int maxDepth)
     }
 }
 
-ForcedNode* BFS_FindWin(const Board& board, Player side, int maxDepth) {
+ForcedNode* BFS_FindWin(const Board& board, Player side, int maxDepth,
+                        const std::function<void()>& eventPump) {
     vcfNodePool.clear();
     nodesVisited = 0;
 
@@ -193,14 +157,15 @@ ForcedNode* BFS_FindWin(const Board& board, Player side, int maxDepth) {
             std::make_unique<ForcedNode>(board, side, Move{-1, -1, Player::NoPlayer}, nullptr, 0));
         ForcedNode* root = vcfNodePool.back().get();
 
-        ForcedNode* res = dfsVCF(root, side, 0, d);
+        ForcedNode* res = dfsVCF(root, side, 0, d, eventPump);
         if (res) return res;
     }
 
     return nullptr;
 }
 
-ForcedNode* BFS_FindLose(const Board& board, Player side, int maxDepth) {
+ForcedNode* BFS_FindLose(const Board& board, Player side, int maxDepth,
+                         const std::function<void()>& eventPump) {
     Player opponent = (side == Player::Black) ? Player::White : Player::Black;
-    return BFS_FindWin(board, opponent, maxDepth);
+    return BFS_FindWin(board, opponent, maxDepth, eventPump);
 }

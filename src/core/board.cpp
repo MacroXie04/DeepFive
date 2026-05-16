@@ -1,10 +1,20 @@
 #include "board.h"
 
 #include <random>
+#include <stdexcept>
 
 // Static member initialization
 uint64_t Board::zobristTable[15][15][2];
 bool Board::zobristInitialized = false;
+
+namespace {
+int validateBoardSize(int size) {
+    if (size < 1 || size > 15) {
+        throw std::invalid_argument("Board size must be between 1 and 15");
+    }
+    return size;
+}
+}  // namespace
 
 void Board::initZobrist() {
     if (zobristInitialized) return;
@@ -20,7 +30,10 @@ void Board::initZobrist() {
 }
 
 Board::Board(int size)
-    : boardSize(size), grid(size * size, Player::NoPlayer), stoneCount(0), currentHash(0) {
+    : boardSize(validateBoardSize(size)),
+      grid(boardSize * boardSize, Player::NoPlayer),
+      stonesPlaced(0),
+      currentHash(0) {
     initZobrist();
 }
 
@@ -44,11 +57,14 @@ bool Board::isEmpty(int row, int col) const {
 }
 
 bool Board::placeStone(int row, int col, Player player) {
+    if (player == Player::NoPlayer) {
+        return false;
+    }
     if (!isEmpty(row, col)) {
         return false;
     }
     grid[row * boardSize + col] = player;
-    stoneCount++;
+    stonesPlaced++;
 
     // Update Zobrist hash
     int playerIndex = (player == Player::Black) ? 0 : 1;
@@ -61,7 +77,7 @@ void Board::removeStone(int row, int col) {
     if (isInside(row, col) && grid[row * boardSize + col] != Player::NoPlayer) {
         Player player = grid[row * boardSize + col];
         grid[row * boardSize + col] = Player::NoPlayer;
-        stoneCount--;
+        stonesPlaced--;
 
         // Update Zobrist hash (XOR is its own inverse)
         int playerIndex = (player == Player::Black) ? 0 : 1;
@@ -98,12 +114,16 @@ Player Board::checkWinner(const Move& lastMove) const {
 }
 
 bool Board::isFull() const {
-    return stoneCount >= boardSize * boardSize;
+    return stonesPlaced >= boardSize * boardSize;
+}
+
+int Board::stoneCount() const {
+    return stonesPlaced;
 }
 
 void Board::clear() {
     std::fill(grid.begin(), grid.end(), Player::NoPlayer);
-    stoneCount = 0;
+    stonesPlaced = 0;
     currentHash = 0;
 }
 

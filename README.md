@@ -25,9 +25,9 @@ DeepFive's AI follows a multi-stage decision pipeline:
 
 **Difficulty Modes**
 
-- **Instant**: Lightning-fast responses (~100ms) for casual play
-- **Thinking**: Balanced depth and speed (1-2s), default mode
-- **Pro**: Deep analysis (5-10s) for maximum strength
+- **Instant**: Lightning-fast responses (~200ms) for casual play
+- **Thinking**: Balanced depth and speed (~5s), default mode
+- **Pro**: Deep analysis (~15s) for maximum strength
 - **Auto**: Dynamic time allocation based on game stage and board complexity
 - **Tournament Mode**: Self-play capability with candidate move visualization
 
@@ -91,7 +91,7 @@ DeepFive includes Docker support with X11 forwarding via Xpra:
 docker build -t deepfive .
 
 # Run the container
-docker run -d -p 8964:8964 deepfive
+docker run -d -p 127.0.0.1:8964:8964 deepfive
 
 # Connect with Xpra client
 xpra attach tcp://localhost:8964
@@ -163,9 +163,10 @@ DeepFive/
 │   └── *.h            # FLTK widget wrappers and utilities
 ├── test/              # Unit and integration tests
 │   ├── test_board.cpp        # Board logic tests
-│   └── test_bot.cpp          # AI engine tests
+│   ├── test_bot.cpp          # AI engine tests
+│   └── test_game.cpp         # Game flow tests
 ├── Makefile           # Build configuration
-├── dockerfile         # Docker containerization
+├── Dockerfile         # Docker containerization
 └── README.md          # This file
 ```
 

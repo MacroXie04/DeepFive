@@ -1,11 +1,12 @@
 #ifndef TEST_UTILS_H
 #define TEST_UTILS_H
 
-#include <iostream>
-#include <vector>
-#include <functional>
-#include <string>
 #include <cmath>
+#include <functional>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 // ANSI Color codes
 #define COLOR_RESET   "\033[0m"
@@ -61,4 +62,3 @@ struct TestRegistrar {
     }
 
 #endif // TEST_UTILS_H
-

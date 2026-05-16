@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 // Convert a regular letter to Unicode bold letter (Mathematical Sans-Serif Bold)
 static std::string toBoldChar(char c) {
@@ -70,6 +71,22 @@ MainWindow::MainWindow()
       game(15),
       canvas(0, 0, 600, 600, "", &game),
       sidePanel(610, 10, 230, 580) {
+    auto eventPump = []() { Fl::check(); };
+    auto uiDispatcher = [](std::function<void()> task) {
+        auto* queuedTask = new std::function<void()>(std::move(task));
+        Fl::awake(
+            [](void* data) {
+                auto* queuedTask = static_cast<std::function<void()>*>(data);
+                (*queuedTask)();
+                delete queuedTask;
+            },
+            queuedTask);
+    };
+    bot.setEventPump(eventPump);
+    bot.setUiDispatcher(uiDispatcher);
+    analysisBot.setEventPump(eventPump);
+    analysisBot.setUiDispatcher(uiDispatcher);
+
     // Initialize state
     blackConfiguredSeconds = 300;
     whiteConfiguredSeconds = 300;
@@ -354,7 +371,7 @@ void MainWindow::updateTitle() {
             status += " (Bot thinking...)";
         }
     }
-    window.label(status.c_str());
+    window.copy_label(status.c_str());
 }
 
 GameMode MainWindow::getSelectedGameMode() {
