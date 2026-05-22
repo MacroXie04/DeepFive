@@ -38,8 +38,7 @@ TEST_CASE(TestPatternDetectsLiveAndJumpThrees) {
     jumpBoard.placeStone(7, 6, Player::Black);
     jumpBoard.placeStone(7, 8, Player::Black);
     auto jumpThreat = Patterns::analyzeMoveThreat(jumpBoard, 7, 9, Player::Black);
-    ASSERT_TRUE(jumpThreat.counts.jumpLiveThrees > 0 ||
-                jumpThreat.counts.liveThrees > 0);
+    ASSERT_TRUE(jumpThreat.counts.jumpLiveThrees > 0 || jumpThreat.counts.liveThrees > 0);
 }
 
 TEST_CASE(TestPatternDetectsDoubleThreeAndEdgeBlock) {
@@ -115,8 +114,8 @@ TEST_CASE(TestVCFUsesJumpFourThreats) {
     auto moves = Heuristics::getScoredCandidateMoves(board, Player::Black, {4});
     bool hasJumpFour = false;
     for (const auto& candidate : moves) {
-        auto threat =
-            Patterns::analyzeMoveThreat(board, candidate.move.row, candidate.move.col, Player::Black);
+        auto threat = Patterns::analyzeMoveThreat(board, candidate.move.row, candidate.move.col,
+                                                  Player::Black);
         if (threat.counts.totalFours() > 0) {
             hasJumpFour = true;
         }

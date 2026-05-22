@@ -1,8 +1,8 @@
 #include "heuristics.h"
 
 #include <algorithm>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <random>
 
 namespace Heuristics {
@@ -130,7 +130,8 @@ std::vector<ScoredMove> getScoredCandidateMoves(const Board& board, Player side,
         pruned.reserve(options.maxMoves);
 
         for (const auto& sm : scored) {
-            bool keepForced = options.preserveForcingMoves && isForcedCandidate(board, sm.move, side);
+            bool keepForced =
+                options.preserveForcingMoves && isForcedCandidate(board, sm.move, side);
             if ((int)pruned.size() < options.maxMoves || keepForced) {
                 pruned.push_back(sm);
             }

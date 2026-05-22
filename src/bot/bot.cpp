@@ -31,8 +31,7 @@ std::optional<Move> findOpeningBookMove(const Board& board, Player side) {
 
     if (board.stoneCount() > 2) return std::nullopt;
 
-    const int offsets[][2] = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1},
-                              {0, -1},  {-1, 0}, {0, 1},  {1, 0}};
+    const int offsets[][2] = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, {0, -1}, {-1, 0}, {0, 1}, {1, 0}};
     for (const auto& offset : offsets) {
         int row = center + offset[0];
         int col = center + offset[1];

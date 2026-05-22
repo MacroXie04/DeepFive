@@ -230,7 +230,6 @@ void MCTSSolver::step() {
             rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
             movesMade++;
         }
-
     }
 
     double blackWinProbability = 0.5;
