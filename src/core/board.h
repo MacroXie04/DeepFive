@@ -27,13 +27,14 @@ class Board {
     Player checkWinner(const Move& lastMove) const;
     std::vector<std::pair<int, int>> getWinningLine(const Move& lastMove) const;
     bool isFull() const;
+    int stoneCount() const;
     void clear();
     uint64_t getHash() const;
 
    private:
     int boardSize;
     std::vector<Player> grid;
-    int stoneCount;
+    int stonesPlaced;
     uint64_t currentHash;
 
     // Zobrist hashing

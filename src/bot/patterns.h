@@ -47,9 +47,31 @@ struct ThreatCount {
     int jumpFours = 0;
     int liveThrees = 0;
     int jumpLiveThrees = 0;
+    int sleepThrees = 0;
+    int liveTwos = 0;
+    int jumpLiveTwos = 0;
 
     int totalFours() const { return liveFours + rushFours + jumpFours; }
     int totalThrees() const { return liveThrees + jumpLiveThrees; }
+};
+
+struct ThreatInfo {
+    PatternType highestPattern = PatternType::NONE;
+    ThreatCount counts;
+    bool createsFive = false;
+    bool createsFourThree = false;
+    bool createsDoubleThree = false;
+    bool createsDoubleFour = false;
+    bool forcedWin = false;
+    int score = 0;
+};
+
+struct MoveThreat {
+    Move move;
+    ThreatInfo ownThreat;
+    ThreatInfo opponentThreat;
+    bool mustPlay = false;
+    int score = 0;
 };
 
 // Extract a line pattern as a string centered at (r,c)
@@ -65,6 +87,13 @@ int countPatternScore(const Board& board, int row, int col, Player player);
 
 // Count threats at a position (for combo detection)
 ThreatCount countThreats(const Board& board, int row, int col, Player player);
+
+// Analyze the tactical value of placing player at row/col.
+ThreatInfo analyzeMoveThreat(const Board& board, int row, int col, Player player);
+
+// True when a move creates a five, four, four-three, or double-three threat.
+bool isForcingMove(const ThreatInfo& threat);
+bool isForcingMove(const Board& board, int row, int col, Player player);
 
 // Fast heuristic score - lightweight version for rollout
 int fastHeuristicScore(const Board& board, int r, int c, Player player);

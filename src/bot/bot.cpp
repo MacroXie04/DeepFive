@@ -1,7 +1,5 @@
 #include "bot.h"
 
-#include <FL/Fl.H>
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -10,12 +8,94 @@
 #include <limits>
 #include <random>
 #include <thread>
+#include <utility>
 
 #include "../search/ForcedBFS.h"
 #include "../search/ForcedDFS.h"
 #include "../search/PathReconstruction.h"
 #include "heuristics.h"
 #include "mcts.h"
+
+namespace {
+Player opponentOf(Player player) {
+    return (player == Player::Black) ? Player::White : Player::Black;
+}
+
+std::optional<Move> findOpeningBookMove(const Board& board, Player side) {
+    int size = board.size();
+    int center = size / 2;
+
+    if (board.stoneCount() == 0 && board.isEmpty(center, center)) {
+        return Move{center, center, side};
+    }
+
+    if (board.stoneCount() > 2) return std::nullopt;
+
+    const int offsets[][2] = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, {0, -1}, {-1, 0}, {0, 1}, {1, 0}};
+    for (const auto& offset : offsets) {
+        int row = center + offset[0];
+        int col = center + offset[1];
+        if (board.isEmpty(row, col)) {
+            return Move{row, col, side};
+        }
+    }
+
+    return std::nullopt;
+}
+
+int calculateSearchDurationMs(const Board& board, Player side, BotMode mode, bool selfPlayMode) {
+    int durationMs = 2000;
+
+    switch (mode) {
+        case BotMode::Instant:
+            durationMs = 200;
+            break;
+        case BotMode::Thinking:
+            durationMs = 5000;
+            break;
+        case BotMode::Pro:
+            durationMs = 15000;
+            break;
+        case BotMode::Auto: {
+            int stoneCount = board.stoneCount();
+            if (stoneCount < 10) {
+                durationMs = 200;
+            } else if (stoneCount < 30) {
+                durationMs = 2000;
+            } else {
+                durationMs = 6000;
+            }
+
+            Heuristics::CandidateOptions options;
+            options.maxMoves = 40;
+            auto candidates = Heuristics::getScoredCandidateMoves(board, side, options);
+            if (!candidates.empty()) {
+                int best = candidates[0].totalScore();
+                if (best >= 1000000) {
+                    durationMs = std::max(durationMs, 3000);
+                } else if ((int)candidates.size() > 24) {
+                    durationMs += 1000;
+                }
+
+                if (candidates.size() >= 2) {
+                    int second = candidates[1].totalScore();
+                    if (std::abs(best - second) < 50000) {
+                        durationMs += 1500;
+                    }
+                }
+            }
+
+            durationMs = std::min(durationMs, 10000);
+            break;
+        }
+    }
+
+    if (selfPlayMode) {
+        durationMs = (int)(durationMs * 1.5);
+    }
+    return durationMs;
+}
+}  // namespace
 
 GomokuBot::GomokuBot() : currentMode(BotMode::Auto) {}
 
@@ -62,28 +142,37 @@ void GomokuBot::setCandidateCallback(CandidateCallback cb) {
     candidateCallback = cb;
 }
 
+void GomokuBot::setEventPump(EventPump pump) {
+    eventPump = std::move(pump);
+}
+
+void GomokuBot::setUiDispatcher(UiDispatcher dispatcher) {
+    uiDispatcher = std::move(dispatcher);
+}
+
+void GomokuBot::setMCTSOptions(const MCTSSolver::Options& options) {
+    mctsOptions = options;
+}
+
+void GomokuBot::setRandomSeed(uint32_t seed) {
+    mctsOptions.seed = seed;
+    Heuristics::setRandomSeed(seed);
+}
+
 std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     if (board.isFull()) return std::nullopt;
 
-    Player opp = (side == Player::Black) ? Player::White : Player::Black;
+    Player opp = opponentOf(side);
 
-    // 0. First move: play center (Tengen) immediately
-    int center = board.size() / 2;
-    if (board.isEmpty(center, center)) {
-        bool isEmpty = true;
-        for (int r = 0; r < board.size() && isEmpty; ++r) {
-            for (int c = 0; c < board.size() && isEmpty; ++c) {
-                if (!board.isEmpty(r, c)) isEmpty = false;
-            }
-        }
-        if (isEmpty) {
-            lastAlgorithmStage = AlgorithmStage::Tengen;
-            return Move{center, center, side};
-        }
+    // 0. Opening book: center, then symmetric center-adjacent replies.
+    if (auto openingMove = findOpeningBookMove(board, side)) {
+        lastAlgorithmStage = AlgorithmStage::Tengen;
+        return openingMove;
     }
 
     // 1. Can we win directly (Five)?
-    for (const auto& mv : Heuristics::getCandidateMoves(board, side)) {
+    auto candidates = Heuristics::getCandidateMoves(board, side);
+    for (const auto& mv : candidates) {
         Board temp = board;
         temp.placeStone(mv.row, mv.col, side);
         if (temp.checkWinner() == side) {
@@ -93,7 +182,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     }
 
     // 2. Must block opponent's win?
-    for (const auto& mv : Heuristics::getCandidateMoves(board, side)) {
+    for (const auto& mv : candidates) {
         Board temp = board;
         temp.placeStone(mv.row, mv.col, opp);
         if (temp.checkWinner() == opp) {
@@ -120,7 +209,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     int vctDepth = selfPlayMode ? 15 : 10;
 
     // 5. Search forced wins (VCF - continuous fours)
-    if (ForcedNode* forcedWin = BFS_FindWin(board, side, vcfDepth)) {
+    if (ForcedNode* forcedWin = BFS_FindWin(board, side, vcfDepth, eventPump)) {
         auto path = reconstructPath(forcedWin);
         if (!path.empty()) {
             lastAlgorithmStage = AlgorithmStage::VCF;
@@ -129,7 +218,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
     }
 
     // 6. Block opponent's VCF
-    if (ForcedNode* forcedLose = BFS_FindLose(board, side, vcfBlockDepth)) {
+    if (ForcedNode* forcedLose = BFS_FindLose(board, side, vcfBlockDepth, eventPump)) {
         auto path = reconstructPath(forcedLose);
         if (!path.empty()) {
             lastAlgorithmStage = AlgorithmStage::BlockVCF;
@@ -141,7 +230,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
 
     // 7. Search VCT (continuous threes) - only in Tournament mode for speed
     if (selfPlayMode) {
-        if (ForcedNode* vctWin = VCT_Solve(board, side, vctDepth)) {
+        if (ForcedNode* vctWin = VCT_Solve(board, side, vctDepth, eventPump)) {
             auto path = reconstructPath(vctWin);
             if (!path.empty()) {
                 lastAlgorithmStage = AlgorithmStage::VCT;
@@ -152,48 +241,9 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
 
     // 8. Use MCTS for position evaluation
     lastAlgorithmStage = AlgorithmStage::MCTS;
-    auto scoredMoves = Heuristics::getScoredMoves(board, side);
 
-    int durationMs = 2000;  // Default
-
-    switch (currentMode) {
-        case BotMode::Instant:
-            durationMs = 200;
-            break;
-        case BotMode::Thinking:
-            durationMs = 5000;
-            break;
-        case BotMode::Pro:
-            durationMs = 15000;
-            break;
-        case BotMode::Auto: {
-            int stoneCount = 0;
-            int size = board.size();
-            for (int r = 0; r < size; ++r)
-                for (int c = 0; c < size; ++c)
-                    if (!board.isEmpty(r, c)) stoneCount++;
-
-            if (stoneCount < 10) {
-                durationMs = 200;
-            } else if (stoneCount < 30) {
-                durationMs = 2000;
-            } else {
-                durationMs = 10000;
-            }
-            break;
-        }
-    }
-
-    if (selfPlayMode) {
-        durationMs = (int)(durationMs * 1.5);
-    }
-
-    MCTSSolver solver(board, side);
-
-    // Wrap callback to ensure UI updates if needed (though chooseMove is usually blocking)
-    // But statusCallback might expect to be called on main thread if it touches UI.
-    // Since chooseMove blocks main thread (usually), calling callback directly is fine.
-    // However, if we want to process events, we should call Fl::check().
+    int durationMs = calculateSearchDurationMs(board, side, currentMode, selfPlayMode);
+    MCTSSolver solver(board, side, mctsOptions);
 
     auto cb = [this, &solver, side](double wr, int sims, double t, double p) {
         if (statusCallback) statusCallback(wr, sims, t, p);
@@ -211,7 +261,7 @@ std::optional<Move> GomokuBot::chooseMove(const Board& board, Player side) {
             }
         }
 
-        Fl::check();
+        if (eventPump) eventPump();
     };
 
     solver.run(durationMs, cb);
@@ -253,27 +303,20 @@ void GomokuBot::startAnalysis(const Board& board, Player side,
     stopAnalysis();  // Stop any existing analysis
     stopAnalysisFlag = false;
     analysisRunning = true;
+    auto dispatcher = uiDispatcher;
 
-    analysisThread = std::thread([this, board, side, cb]() {
+    analysisThread = std::thread([this, board, side, cb, dispatcher]() {
         MCTSSolver solver(board, side);
 
         // Callback wrapper for thread safety
-        auto safeCb = [cb](double wr, int sims, double t) {
-            struct UpdateData {
-                std::function<void(double, int, double)> cb;
-                double wr;
-                int sims;
-                double t;
-            };
-            auto* data = new UpdateData{cb, wr, sims, t};
-
-            Fl::awake(
-                [](void* d) {
-                    auto* data = (UpdateData*)d;
-                    if (data->cb) data->cb(data->wr, data->sims, data->t);
-                    delete data;
-                },
-                data);
+        auto safeCb = [cb, dispatcher](double wr, int sims, double t) {
+            if (dispatcher) {
+                dispatcher([cb, wr, sims, t]() {
+                    if (cb) cb(wr, sims, t);
+                });
+            } else if (cb) {
+                cb(wr, sims, t);
+            }
         };
 
         solver.runContinuous(stopAnalysisFlag, safeCb);

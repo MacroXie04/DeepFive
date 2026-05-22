@@ -1,21 +1,23 @@
 #include "mcts.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <iostream>
 #include <limits>
-#include <random>
-
-// Thread-local random generator
-static thread_local std::mt19937 rng(std::random_device{}());
 
 // Rollout configuration
-constexpr int ROLLOUT_DEPTH_LIMIT = 100;        // Max moves in rollout
-constexpr double EVAL_GUIDED_PROB = 0.15;       // Low probability - evaluation is expensive
 constexpr double PROGRESSIVE_BIAS_SCALE = 0.5;  // Scale factor for progressive bias
 
-MCTSNode::MCTSNode(Move m, MCTSNode* p, Player justMoved, double bias)
-    : move(m), parent(p), visits(0), wins(0.0), playerJustMoved(justMoved), heuristicBias(bias) {}
+MCTSNode::MCTSNode(Move m, MCTSNode* p, Player justMoved, double bias, int score, uint64_t hash)
+    : move(m),
+      parent(p),
+      visits(0),
+      wins(0.0),
+      playerJustMoved(justMoved),
+      heuristicBias(bias),
+      heuristicScore(score),
+      stateHash(hash) {}
 
 bool MCTSNode::isFullyExpanded() const {
     return untriedMoves.empty();
@@ -47,10 +49,113 @@ MCTSNode* MCTSNode::bestChild(double explorationValue, bool useProgressiveBias) 
     return best;
 }
 
-MCTSSolver::MCTSSolver(const Board& board, Player side) : rootBoard(board) {
+MCTSSolver::MCTSSolver(const Board& board, Player side) : MCTSSolver(board, side, Options{}) {}
+
+MCTSSolver::MCTSSolver(const Board& board, Player side, Options options)
+    : rootBoard(board), options(options) {
+    if (this->options.seed) {
+        rng.seed(*this->options.seed);
+        Heuristics::setRandomSeed(*this->options.seed);
+    } else {
+        std::random_device rd;
+        rng.seed(rd());
+    }
+
     Player opponent = (side == Player::Black) ? Player::White : Player::Black;
-    root = std::make_unique<MCTSNode>(Move{-1, -1, Player::NoPlayer}, nullptr, opponent, 0.0);
-    root->untriedMoves = Heuristics::getCandidateMoves(board, side);
+    root = std::make_unique<MCTSNode>(Move{-1, -1, Player::NoPlayer}, nullptr, opponent, 0.0, 0,
+                                      board.getHash());
+    root->untriedMoves = getOrderedMoves(board, side, this->options.rootBeamSize);
+}
+
+void MCTSSolver::setSeed(uint32_t seed) {
+    options.seed = seed;
+    rng.seed(seed);
+    Heuristics::setRandomSeed(seed);
+}
+
+uint64_t MCTSSolver::getTranspositionKey(uint64_t boardHash, Player side) const {
+    uint64_t sideValue = (side == Player::Black) ? 0x9E3779B97F4A7C15ULL : 0xBF58476D1CE4E5B9ULL;
+    return boardHash ^ (sideValue + (boardHash << 6) + (boardHash >> 2));
+}
+
+std::vector<Move> MCTSSolver::getOrderedMoves(const Board& board, Player side, int maxMoves) {
+    uint64_t key = getTranspositionKey(board.getHash(), side) ^ ((uint64_t)maxMoves << 48);
+    if (options.enableTranspositionTable) {
+        auto it = transpositionTable.find(key);
+        if (it != transpositionTable.end() && it->second.hasCandidates) {
+            return it->second.candidates;
+        }
+    }
+
+    Heuristics::CandidateOptions candidateOptions;
+    candidateOptions.maxMoves = maxMoves;
+    candidateOptions.preserveForcingMoves = true;
+    auto scoredMoves = Heuristics::getScoredCandidateMoves(board, side, candidateOptions);
+
+    std::vector<Move> moves;
+    moves.reserve(scoredMoves.size());
+    for (const auto& scored : scoredMoves) {
+        moves.push_back(scored.move);
+    }
+
+    if (options.enableTranspositionTable) {
+        auto& entry = transpositionTable[key];
+        entry.hasCandidates = true;
+        entry.candidates = moves;
+    }
+
+    return moves;
+}
+
+double MCTSSolver::evaluateStaticBlackWinProbability(const Board& board) {
+    uint64_t key = getTranspositionKey(board.getHash(), Player::Black);
+    if (options.enableTranspositionTable) {
+        auto it = transpositionTable.find(key);
+        if (it != transpositionTable.end() && it->second.hasStaticEval) {
+            return it->second.blackWinProbability;
+        }
+    }
+
+    double probability = Evaluation::evaluateBoard(board, Player::Black).winProbability;
+
+    if (options.enableTranspositionTable) {
+        auto& entry = transpositionTable[key];
+        entry.hasStaticEval = true;
+        entry.blackWinProbability = probability;
+    }
+
+    return probability;
+}
+
+std::optional<Move> MCTSSolver::getRolloutMove(const Board& board, Player side) {
+    if (auto threat = Heuristics::getFastThreatMove(board, side)) {
+        return threat;
+    }
+
+    Heuristics::CandidateOptions candidateOptions;
+    candidateOptions.maxMoves = options.rolloutSampleSize;
+    auto scoredMoves = Heuristics::getScoredCandidateMoves(board, side, candidateOptions);
+    if (scoredMoves.empty()) return std::nullopt;
+    if (scoredMoves[0].totalScore() >= 1000000) return scoredMoves[0].move;
+
+    std::vector<double> weights;
+    weights.reserve(scoredMoves.size());
+    double totalWeight = 0.0;
+    for (const auto& scored : scoredMoves) {
+        double weight = std::exp(std::min(10.0, scored.totalScore() / 50000.0));
+        weights.push_back(weight);
+        totalWeight += weight;
+    }
+
+    std::uniform_real_distribution<> dis(0.0, totalWeight);
+    double sample = dis(rng);
+    double cumulative = 0.0;
+    for (size_t i = 0; i < scoredMoves.size(); ++i) {
+        cumulative += weights[i];
+        if (sample <= cumulative) return scoredMoves[i].move;
+    }
+
+    return scoredMoves[0].move;
 }
 
 void MCTSSolver::step() {
@@ -63,15 +168,10 @@ void MCTSSolver::step() {
         tempBoard.placeStone(node->move.row, node->move.col, node->move.player);
     }
 
-    // Expansion - use simple random selection for speed
+    // Expansion - sorted candidate order gives tactical moves first.
     if (!node->isFullyExpanded() && !tempBoard.isFull()) {
-        std::uniform_int_distribution<> dis(0, node->untriedMoves.size() - 1);
-        int idx = dis(rng);
-        Move move = node->untriedMoves[idx];
-
-        // O(1) removal: swap with last element and pop
-        std::swap(node->untriedMoves[idx], node->untriedMoves.back());
-        node->untriedMoves.pop_back();
+        Move move = node->untriedMoves.front();
+        node->untriedMoves.erase(node->untriedMoves.begin());
 
         Player currentPlayer =
             (node->playerJustMoved == Player::Black) ? Player::White : Player::Black;
@@ -79,12 +179,21 @@ void MCTSSolver::step() {
 
         // Calculate heuristic bias only for the chosen node (lightweight version)
         double heuristicBias = Heuristics::getHeuristicBias(tempBoard, move);
+        int heuristicScore = 0;
+        auto scoredMoves = Heuristics::getScoredCandidateMoves(tempBoard, currentPlayer);
+        for (const auto& scored : scoredMoves) {
+            if (scored.move.row == move.row && scored.move.col == move.col) {
+                heuristicScore = scored.totalScore();
+                break;
+            }
+        }
 
-        auto child = std::make_unique<MCTSNode>(move, node, currentPlayer, heuristicBias);
         tempBoard.placeStone(move.row, move.col, currentPlayer);
+        auto child = std::make_unique<MCTSNode>(move, node, currentPlayer, heuristicBias,
+                                                heuristicScore, tempBoard.getHash());
 
         Player nextPlayer = (currentPlayer == Player::Black) ? Player::White : Player::Black;
-        child->untriedMoves = Heuristics::getCandidateMoves(tempBoard, nextPlayer);
+        child->untriedMoves = getOrderedMoves(tempBoard, nextPlayer, options.childBeamSize);
 
         node->children.push_back(std::move(child));
         node = node->children.back().get();
@@ -97,29 +206,17 @@ void MCTSSolver::step() {
 
     int movesMade = 0;
 
-    if (rolloutBoard.checkWinner() != Player::NoPlayer) {
-        winner = rolloutBoard.checkWinner();
+    Player existingWinner = rolloutBoard.checkWinner();
+    if (existingWinner != Player::NoPlayer) {
+        winner = existingWinner;
     } else {
-        while (movesMade < ROLLOUT_DEPTH_LIMIT) {
+        while (movesMade < options.rolloutDepthLimit) {
             if (rolloutBoard.isFull()) {
                 winner = Player::NoPlayer;
                 break;
             }
 
-            // Try fast threat move first (win or block)
-            std::optional<Move> selectedMove =
-                Heuristics::getFastThreatMove(rolloutBoard, rolloutPlayer);
-
-            // Use evaluation-guided move with some probability, else random
-            if (!selectedMove) {
-                std::uniform_real_distribution<> probDist(0.0, 1.0);
-                if (probDist(rng) < EVAL_GUIDED_PROB) {
-                    selectedMove = Heuristics::getEvaluationGuidedMove(rolloutBoard, rolloutPlayer);
-                } else {
-                    selectedMove = Heuristics::getFastRandomMove(rolloutBoard, rolloutPlayer);
-                }
-            }
-
+            std::optional<Move> selectedMove = getRolloutMove(rolloutBoard, rolloutPlayer);
             if (!selectedMove) break;
 
             rolloutBoard.placeStone(selectedMove->row, selectedMove->col, rolloutPlayer);
@@ -133,24 +230,33 @@ void MCTSSolver::step() {
             rolloutPlayer = (rolloutPlayer == Player::Black) ? Player::White : Player::Black;
             movesMade++;
         }
+    }
 
-        // If rollout didn't finish with a winner, the draw value (0.5) will be used
-        // This happens when ROLLOUT_DEPTH_LIMIT is reached without a decisive result
+    double blackWinProbability = 0.5;
+    if (winner == Player::Black) {
+        blackWinProbability = 1.0;
+    } else if (winner == Player::White) {
+        blackWinProbability = 0.0;
+    } else if (!rolloutBoard.isFull()) {
+        blackWinProbability = evaluateStaticBlackWinProbability(rolloutBoard);
     }
 
     // Backpropagation
     while (node != nullptr) {
         node->visits++;
-        if (winner != Player::NoPlayer) {
-            if (node->playerJustMoved == winner) {
-                node->wins += 1.0;
-            } else if (node->playerJustMoved != Player::NoPlayer) {
-                node->wins += 0.0;
-            }
-        } else {
-            // Draw or evaluation-based: use 0.5
-            // Could use evaluation score here for more nuance
-            node->wins += 0.5;
+        double nodeWin = 0.5;
+        if (node->playerJustMoved == Player::Black) {
+            nodeWin = blackWinProbability;
+        } else if (node->playerJustMoved == Player::White) {
+            nodeWin = 1.0 - blackWinProbability;
+        }
+        node->wins += nodeWin;
+
+        if (options.enableTranspositionTable) {
+            uint64_t key = getTranspositionKey(node->stateHash, node->playerJustMoved);
+            auto& entry = transpositionTable[key];
+            entry.visits++;
+            entry.wins += nodeWin;
         }
         node = node->parent;
     }
@@ -195,6 +301,12 @@ void MCTSSolver::run(int durationMs, std::function<void(double, int, double, dou
             statusCb(winRate * 100.0, totalSimulations, elapsedSec, progress);
             lastUpdate = now;
         }
+    }
+}
+
+void MCTSSolver::runIterations(int iterations) {
+    for (int i = 0; i < iterations; ++i) {
+        step();
     }
 }
 
@@ -270,7 +382,21 @@ std::pair<std::optional<Move>, int> MCTSSolver::getBestMove() {
     MCTSNode* bestNode = nullptr;
     int maxVisits = -1;
     for (const auto& child : root->children) {
-        if (child->visits > maxVisits) {
+        if (child->visits <= 0) continue;
+
+        bool better = child->visits > maxVisits;
+        if (!better && bestNode) {
+            int closeVisitMargin = std::max(2, maxVisits / 20);
+            if (std::abs(child->visits - maxVisits) <= closeVisitMargin) {
+                double childValue = child->wins / child->visits + child->heuristicBias +
+                                    child->heuristicScore / 10000000.0;
+                double bestValue = bestNode->wins / bestNode->visits + bestNode->heuristicBias +
+                                   bestNode->heuristicScore / 10000000.0;
+                better = childValue > bestValue;
+            }
+        }
+
+        if (better) {
             maxVisits = child->visits;
             bestNode = child.get();
         }
@@ -305,7 +431,8 @@ std::vector<MCTSSolver::CandidateEval> MCTSSolver::getCandidateEvaluations() con
             double winRate = child->wins / child->visits;
             double visitRatio = (double)child->visits / maxVisits;
             // Combine win rate (70%) and visit ratio (30%) for visual prominence
-            eval.score = (float)(winRate * 0.7 + visitRatio * 0.3);
+            double heuristicRatio = std::min(1.0, child->heuristicScore / 10000000.0);
+            eval.score = (float)(winRate * 0.6 + visitRatio * 0.3 + heuristicRatio * 0.1);
             evals.push_back(eval);
         }
     }

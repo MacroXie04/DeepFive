@@ -36,6 +36,8 @@ TEST_CASE(TestBotChooseMoveEmptyBoard) {
     Move move = moveOpt.value();
 
     ASSERT_TRUE(board.isInside(move.row, move.col));
+    ASSERT_EQ(7, move.row);
+    ASSERT_EQ(7, move.col);
     ASSERT_EQ(Player::Black, move.player);
 }
 
@@ -122,6 +124,23 @@ TEST_CASE(TestBotPreventOpenFour) {
 
     bool blocked = (move.row == 7 && (move.col == 5 || move.col == 9));
     ASSERT_TRUE(blocked);
+}
+
+TEST_CASE(TestBotAutoModeReturnsLegalMove) {
+    GomokuBot bot;
+    Board board(15);
+    bot.setMode(BotMode::Auto);
+
+    board.placeStone(7, 7, Player::Black);
+    board.placeStone(7, 8, Player::White);
+    ASSERT_EQ(2, board.stoneCount());
+
+    auto moveOpt = bot.chooseMove(board, Player::Black);
+    ASSERT_TRUE(moveOpt.has_value());
+    Move move = moveOpt.value();
+    ASSERT_TRUE(board.isInside(move.row, move.col));
+    ASSERT_TRUE(board.isEmpty(move.row, move.col));
+    ASSERT_EQ(Player::Black, move.player);
 }
 
 // Simulate a full game between two bots to ensure stability and termination

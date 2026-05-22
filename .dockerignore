@@ -1,0 +1,9 @@
+.git/
+.github/
+.idea/
+.vscode/
+bin/
+objects/
+build/
+*.log
+.DS_Store

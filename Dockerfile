@@ -54,5 +54,5 @@ RUN make all
 # ----------------------------------------------------------------------------------------------
 # Step 6: Launch Xpra server and start the application
 # ----------------------------------------------------------------------------------------------
-# Bind the Xpra server strictly to localhost on port 8964
+# Bind inside the container so Docker can publish the port to host loopback.
 CMD ["xpra", "start", ":100", "--bind-tcp=0.0.0.0:8964", "--start-child=/app/bin/app", "--exit-with-children", "--daemon=no"]

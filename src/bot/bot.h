@@ -2,6 +2,7 @@
 #define BOT_H
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -10,6 +11,7 @@
 #include <vector>
 
 #include "../core/board.h"
+#include "mcts.h"
 
 enum class BotMode { Instant, Auto, Thinking, Pro };
 
@@ -78,6 +80,13 @@ class GomokuBot {
         std::function<void(const std::vector<std::tuple<int, int, Player, float>>&)>;
     void setCandidateCallback(CandidateCallback cb);
 
+    using EventPump = std::function<void()>;
+    using UiDispatcher = std::function<void(std::function<void()>)>;
+    void setEventPump(EventPump pump);
+    void setUiDispatcher(UiDispatcher dispatcher);
+    void setMCTSOptions(const MCTSSolver::Options& options);
+    void setRandomSeed(uint32_t seed);
+
     std::optional<Move> chooseMove(const Board& board, Player side);
 
     // Analysis Mode
@@ -94,6 +103,9 @@ class GomokuBot {
     AlgorithmStage lastAlgorithmStage = AlgorithmStage::MCTS;
     std::function<void(double, int, double, double)> statusCallback;
     CandidateCallback candidateCallback;
+    EventPump eventPump;
+    UiDispatcher uiDispatcher;
+    MCTSSolver::Options mctsOptions;
 
     std::atomic<bool> analysisRunning{false};
     std::atomic<bool> stopAnalysisFlag{false};

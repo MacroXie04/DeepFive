@@ -14,6 +14,13 @@ namespace Heuristics {
 using ScoredMove = Evaluation::ScoredMove;
 using BoardEvaluation = Evaluation::BoardEvaluation;
 
+struct CandidateOptions {
+    int maxMoves = 0;  // 0 means no cap
+    int neighborDistance = 2;
+    bool preserveForcingMoves = true;
+    bool includeOpponentThreats = true;
+};
+
 // Re-export pattern scores
 using Patterns::SCORE_FIVE;
 using Patterns::SCORE_LIVE_FOUR;
@@ -25,8 +32,14 @@ using Patterns::SCORE_RUSH_FOUR;
 // Returns plausible moves to consider for MCTS or other searches
 std::vector<Move> getCandidateMoves(const Board& board, Player side);
 
+// Returns tactical candidates sorted from strongest to weakest.
+std::vector<ScoredMove> getScoredCandidateMoves(const Board& board, Player side,
+                                                CandidateOptions options = {});
+
 // Returns a random move near existing stones (fast rollout policy)
 std::optional<Move> getFastRandomMove(const Board& board, Player side);
+
+void setRandomSeed(uint32_t seed);
 
 // ========== Threat Detection ==========
 

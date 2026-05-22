@@ -20,6 +20,7 @@ static std::ostream& operator<<(std::ostream& os, Player p) {
 TEST_CASE(TestBoardInitialization) {
     Board board(15);
     ASSERT_EQ(15, board.size());
+    ASSERT_EQ(0, board.stoneCount());
 
     for (int r = 0; r < 15; ++r) {
         for (int c = 0; c < 15; ++c) {
@@ -28,6 +29,24 @@ TEST_CASE(TestBoardInitialization) {
         }
     }
     ASSERT_FALSE(board.isFull());
+}
+
+TEST_CASE(TestInvalidBoardSize) {
+    bool threw = false;
+    try {
+        Board board(0);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    ASSERT_TRUE(threw);
+
+    threw = false;
+    try {
+        Board board(16);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    ASSERT_TRUE(threw);
 }
 
 TEST_CASE(TestPlaceStone) {
@@ -47,6 +66,41 @@ TEST_CASE(TestPlaceStone) {
     // Place invalid stone (out of bounds)
     ASSERT_FALSE(board.placeStone(-1, 0, Player::White));
     ASSERT_FALSE(board.placeStone(15, 0, Player::White));
+}
+
+TEST_CASE(TestRejectNoPlayerStone) {
+    Board board(15);
+    uint64_t emptyHash = board.getHash();
+
+    ASSERT_FALSE(board.placeStone(7, 7, Player::NoPlayer));
+    ASSERT_TRUE(board.isEmpty(7, 7));
+    ASSERT_EQ(0, board.stoneCount());
+    ASSERT_EQ(emptyHash, board.getHash());
+}
+
+TEST_CASE(TestStoneCountAndHashRestore) {
+    Board board(15);
+    uint64_t emptyHash = board.getHash();
+
+    ASSERT_TRUE(board.placeStone(7, 7, Player::Black));
+    uint64_t blackHash = board.getHash();
+    ASSERT_EQ(1, board.stoneCount());
+
+    ASSERT_TRUE(board.placeStone(7, 8, Player::White));
+    ASSERT_EQ(2, board.stoneCount());
+
+    board.removeStone(7, 8);
+    ASSERT_EQ(1, board.stoneCount());
+    ASSERT_EQ(blackHash, board.getHash());
+
+    board.removeStone(7, 7);
+    ASSERT_EQ(0, board.stoneCount());
+    ASSERT_EQ(emptyHash, board.getHash());
+
+    ASSERT_TRUE(board.placeStone(0, 0, Player::Black));
+    board.clear();
+    ASSERT_EQ(0, board.stoneCount());
+    ASSERT_EQ(emptyHash, board.getHash());
 }
 
 TEST_CASE(TestWinHorizontal) {

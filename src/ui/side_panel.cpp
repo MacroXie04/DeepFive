@@ -330,12 +330,12 @@ void SidePanel::updateModeDescription(int strengthIndex) {
     else
         desc = "Uses maximum thinking for the best play";
 
-    txtModeDesc.label(desc.c_str());
+    txtModeDesc.copy_label(desc.c_str());
     txtModeDesc.redraw();
 }
 
 void SidePanel::updateStats(const std::string& text) {
-    txtStats.label(text.c_str());
+    txtStats.copy_label(text.c_str());
     txtStats.redraw();
 }
 

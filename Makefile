@@ -48,7 +48,7 @@ all: $(OUT)
 $(OUT): $(OBJ) | $(OBJ_DIR) $(LOCAL_BIN_DIR)
 	$(CXX) $(OBJ) -o $(OUT) $(LDFLAGS)
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(HEADERS) | $(OBJ_DIR)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
@@ -66,12 +66,12 @@ $(TEST_OUT): $(OBJ) $(TEST_OBJ) | $(BIN_DIR) $(LOCAL_BIN_DIR)
 	$(CXX) $(filter-out $(OBJ_DIR)/$(MAIN).o,$(OBJ)) $(TEST_OBJ) -o $(TEST_OUT) $(LDFLAGS)
 
 test: $(TEST_OUT)
-	$(LOCAL_BIN_DIR)/$(TEST) --output=color || true
+	$(LOCAL_BIN_DIR)/$(TEST) --output=color
 
 autograde: clean $(TEST_OUT)
-	xvfb-run $(LOCAL_BIN_DIR)/$(TEST) || true
+	xvfb-run $(LOCAL_BIN_DIR)/$(TEST)
 
-$(OBJ_DIR)/test/%.o: $(TEST_DIR)/%.cpp | $(OBJ_DIR)
+$(OBJ_DIR)/test/%.o: $(TEST_DIR)/%.cpp $(HEADERS) $(TEST_DIR)/test_utils.h | $(OBJ_DIR)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
